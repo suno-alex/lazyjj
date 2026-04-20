@@ -103,12 +103,7 @@ impl Commander {
                     "list",
                     "--config",
                     // Override format_ref_targets to not list conflicts
-                    r#"template-aliases.'format_ref_targets(ref)'='''
-                        if(ref.conflict(),
-                          " " ++ label("conflict", "(conflicted)"),
-                          ": " ++ format_commit_summary_with_refs(ref.normal_target(), ""),
-                        )
-                    '''"#,
+                    r#"template-aliases.'format_ref_targets(ref)'='if(ref.conflict(), " " ++ label("conflict", "(conflicted)"), ": " ++ format_commit_summary_with_refs(ref.normal_target(), ""))'"#,
                 ],
                 args.clone(),
             ]
