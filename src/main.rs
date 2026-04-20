@@ -33,6 +33,7 @@ use tracing_chrome::ChromeLayerBuilder;
 use tracing_subscriber::layer::SubscriberExt;
 
 mod app;
+mod clipboard;
 mod commander;
 mod env;
 mod keybinds;

@@ -43,6 +43,7 @@ pub struct LogTabKeybindsConfig {
     pub set_bookmark: Option<Keybind>,
     pub open_files: Option<Keybind>,
     pub rebase: Option<Keybind>,
+    pub copy_change_id: Option<Keybind>,
 
     pub push: Option<Keybind>,
     pub push_new: Option<Keybind>,

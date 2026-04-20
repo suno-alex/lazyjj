@@ -13,7 +13,7 @@ use tui_confirm_dialog::{ButtonLabel, ConfirmDialog, ConfirmDialogState, Listene
 use tui_textarea::{CursorMove, TextArea};
 
 use crate::{
-    ComponentInputResult,
+    ComponentInputResult, clipboard,
     commander::{CommandError, Commander, log::Head},
     env::{Config, DiffFormat},
     keybinds::{LogTabEvent, LogTabKeybinds},
@@ -379,6 +379,11 @@ impl<'a> LogTab<'a> {
                 return Ok(ComponentInputResult::HandledAction(
                     ComponentAction::ViewFiles(self.head.clone()),
                 ));
+            }
+            LogTabEvent::CopyChangeId => {
+                if let Err(err) = clipboard::copy_to_clipboard(self.head.change_id.as_str()) {
+                    tracing::warn!("Failed to copy change ID to clipboard: {err}");
+                }
             }
             LogTabEvent::Push {
                 all_bookmarks,

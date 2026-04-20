@@ -1,7 +1,7 @@
 #![expect(clippy::borrow_interior_mutable_const)]
 
 use crate::{
-    ComponentInputResult,
+    ComponentInputResult, clipboard,
     commander::{CommandError, Commander, bookmarks::BookmarkLine, ids::ChangeId},
     env::{Config, DiffFormat},
     ui::{
@@ -796,6 +796,13 @@ impl Component for BookmarksTab<'_> {
                     });
                     return Ok(ComponentInputResult::Handled);
                 }
+                KeyCode::Char('y') => {
+                    if let Some(BookmarkLine::Parsed { bookmark, .. }) = self.bookmark.as_ref()
+                        && let Err(err) = clipboard::copy_to_clipboard(&bookmark.name)
+                    {
+                        tracing::warn!("Failed to copy bookmark name to clipboard: {err}");
+                    }
+                }
                 KeyCode::Char('r') => {
                     if let Some(BookmarkLine::Parsed { bookmark, .. }) = self.bookmark.as_ref() {
                         let mut textarea = TextArea::new(vec![bookmark.name.clone()]);
@@ -951,6 +958,7 @@ impl Component for BookmarksTab<'_> {
                                 ("n".to_owned(), "new from bookmark".to_owned()),
                                 ("N".to_owned(), "new and describe".to_owned()),
                                 ("e".to_owned(), "edit bookmark".to_owned()),
+                                ("y".to_owned(), "copy bookmark name".to_owned()),
                             ],
                             vec![
                                 ("Ctrl+e/Ctrl+y".to_owned(), "scroll down/up".to_owned()),
