@@ -423,7 +423,14 @@ impl Component for BookmarksTab<'_> {
                 " Bookmark ".to_owned()
             };
             let bookmark_content: Vec<Line> = match self.bookmark_output.as_ref() {
-                Some(Ok(bookmark_output)) => tint_git_diff(bookmark_output.into_text()?).lines,
+                Some(Ok(bookmark_output)) => {
+                    let text = bookmark_output.into_text()?;
+                    if matches!(self.diff_format, DiffFormat::Git) {
+                        tint_git_diff(text).lines
+                    } else {
+                        text.lines
+                    }
+                }
                 Some(Err(err)) => err.into_text("Error getting bookmark")?.lines,
                 None => vec![],
             };

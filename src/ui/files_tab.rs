@@ -190,18 +190,6 @@ impl FilesTab {
             }
         }
     }
-
-    /// If the diff pane is stale, run `jj diff` to refresh it. Called from
-    /// `update()` only when the event queue is idle, so rapid scroll
-    /// events coalesce into a single refresh.
-    fn apply_deferred_refresh(&mut self, commander: &mut Commander) -> Result<()> {
-        if self.diff_output_dirty {
-            self.diff_output_dirty = false;
-            self.refresh_diff(commander)?;
-            self.diff_panel.scroll_to(0);
-        }
-        Ok(())
-    }
 }
 
 impl Component for FilesTab {
@@ -218,7 +206,8 @@ impl Component for FilesTab {
         // the input queue has drained, so fast wheel scrolling doesn't
         // spawn a `jj diff` per event.
         if self.diff_output_dirty && !event::poll(std::time::Duration::ZERO).unwrap_or(true) {
-            self.apply_deferred_refresh(commander)?;
+            self.diff_output_dirty = false;
+            self.refresh_diff(commander)?;
         }
         Ok(None)
     }
@@ -342,7 +331,14 @@ impl Component for FilesTab {
         // Draw diff
         {
             let diff_content = match self.diff_output.as_ref() {
-                Ok(Some(diff_content)) => tint_git_diff(diff_content.into_text()?),
+                Ok(Some(diff_content)) => {
+                    let text = diff_content.into_text()?;
+                    if matches!(self.diff_format, DiffFormat::Git) {
+                        tint_git_diff(text)
+                    } else {
+                        text
+                    }
+                }
                 Ok(None) => Text::default(),
                 Err(err) => err.into_text("Error getting diff")?,
             };

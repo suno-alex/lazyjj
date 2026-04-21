@@ -55,17 +55,22 @@ const JJ_VERSION_IGNORE_HELP: &str = "If you want to continue anyway, use --igno
 
 impl DiffFormat {
     pub fn get_args(&self) -> Vec<&str> {
-        let format_args: Vec<&str> = match self {
-            DiffFormat::ColorWords => vec!["--color-words"],
-            DiffFormat::Git => vec!["--git"],
+        match self {
+            DiffFormat::ColorWords => vec![
+                "--config",
+                "colors.\"diff token\".underline=false",
+                "--color-words",
+            ],
+            DiffFormat::Git => vec![
+                "--config",
+                "colors.\"diff token\".underline=false",
+                "--git",
+            ],
             DiffFormat::Summary => vec!["--summary"],
             DiffFormat::Stat => vec!["--stat"],
             DiffFormat::DiffTool(Some(tool)) => vec!["--tool", tool],
             DiffFormat::DiffTool(None) => vec![],
-        };
-        let mut args = vec!["--config", "colors.\"diff token\".underline=false"];
-        args.extend(format_args);
-        args
+        }
     }
 }
 

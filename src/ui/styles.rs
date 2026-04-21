@@ -15,6 +15,9 @@ pub static POPUP_BLOCK: LazyLock<Block<'static>> = LazyLock::new(|| {
 });
 pub static POPUP_BLOCK_TITLE_STYLE: LazyLock<Style> = LazyLock::new(|| Style::new().bold().cyan());
 
+pub const DIFF_ADDED_BG: Color = Color::Rgb(20, 60, 20);
+pub const DIFF_REMOVED_BG: Color = Color::Rgb(70, 25, 25);
+
 pub fn create_popup_block(title: &str) -> Block<'_> {
     POPUP_BLOCK
         .clone()

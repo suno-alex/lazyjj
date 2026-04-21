@@ -137,20 +137,10 @@ impl<'a> LogTab<'a> {
     }
 
     /// Mark the change details as needing a refresh. Cheap — the actual
-    /// `jj show` runs later via `apply_deferred_refresh`.
+    /// `jj show` runs later from `update()` once the event queue is idle.
     fn sync_head_output(&mut self) {
         self.head = self.log_panel.head.clone();
         self.head_output_dirty = true;
-    }
-
-    /// If the details pane is stale, run `jj show` to refresh it. Called
-    /// from `update()` only when the event queue is idle, so rapid scroll
-    /// events coalesce into a single refresh.
-    fn apply_deferred_refresh(&mut self, commander: &mut Commander) {
-        if self.head_output_dirty {
-            self.head_output_dirty = false;
-            self.refresh_head_output(commander);
-        }
     }
 
     fn refresh_head_output(&mut self, commander: &mut Commander) {
@@ -492,7 +482,8 @@ impl Component for LogTab<'_> {
         // the input queue has drained, so fast wheel scrolling doesn't
         // spawn a `jj show` per event.
         if self.head_output_dirty && !event::poll(std::time::Duration::ZERO).unwrap_or(true) {
-            self.apply_deferred_refresh(commander);
+            self.head_output_dirty = false;
+            self.refresh_head_output(commander);
         }
 
         Ok(None)
@@ -518,7 +509,14 @@ impl Component for LogTab<'_> {
         // Draw change details
         {
             let head_content = match self.head_output.as_ref() {
-                Ok(head_output) => tint_git_diff(head_output.into_text()?).lines,
+                Ok(head_output) => {
+                    let text = head_output.into_text()?;
+                    if matches!(self.diff_format, DiffFormat::Git) {
+                        tint_git_diff(text).lines
+                    } else {
+                        text.lines
+                    }
+                }
                 Err(err) => err.into_text("Error getting head details")?.lines,
             };
             self.head_panel

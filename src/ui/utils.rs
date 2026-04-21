@@ -4,6 +4,8 @@ use ratatui::{
     text::{Line, Span, Text},
 };
 
+use crate::ui::styles::{DIFF_ADDED_BG, DIFF_REMOVED_BG};
+
 pub fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
@@ -119,9 +121,6 @@ pub fn tabs_to_spaces(line: &str) -> String {
     }
     out
 }
-
-const DIFF_ADDED_BG: Color = Color::Rgb(20, 60, 20);
-const DIFF_REMOVED_BG: Color = Color::Rgb(70, 25, 25);
 
 /// Apply GitHub-style line backgrounds to a `jj diff --git` text: light
 /// green for added lines, light red for removed lines. All diff body
