@@ -9,7 +9,7 @@ use crate::{
         help_popup::HelpPopup,
         message_popup::MessagePopup,
         panel::DetailsPanel,
-        utils::{centered_rect, centered_rect_line_height, tabs_to_spaces},
+        utils::{centered_rect, centered_rect_line_height, tabs_to_spaces, tint_git_diff},
     },
 };
 use ansi_to_tui::IntoText;
@@ -423,7 +423,7 @@ impl Component for BookmarksTab<'_> {
                 " Bookmark ".to_owned()
             };
             let bookmark_content: Vec<Line> = match self.bookmark_output.as_ref() {
-                Some(Ok(bookmark_output)) => bookmark_output.into_text()?.lines,
+                Some(Ok(bookmark_output)) => tint_git_diff(bookmark_output.into_text()?).lines,
                 Some(Err(err)) => err.into_text("Error getting bookmark")?.lines,
                 None => vec![],
             };

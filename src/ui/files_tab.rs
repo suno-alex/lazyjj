@@ -13,13 +13,14 @@ use crate::{
     env::{Config, DiffFormat},
     ui::{
         Component, ComponentAction, help_popup::HelpPopup, message_popup::MessagePopup,
-        panel::DetailsPanel, utils::tabs_to_spaces,
+        panel::DetailsPanel,
+        utils::{tabs_to_spaces, tint_git_diff},
     },
 };
 
 use ansi_to_tui::IntoText;
 use ratatui::{
-    crossterm::event::{Event, KeyCode, KeyEventKind},
+    crossterm::event::{self, Event, KeyCode, KeyEventKind},
     prelude::*,
     widgets::*,
 };
@@ -38,6 +39,10 @@ pub struct FilesTab {
     diff_panel: DetailsPanel,
     diff_output: Result<Option<String>, CommandError>,
     diff_format: DiffFormat,
+    /// When true, `diff_output` is stale relative to `file` and should be
+    /// recomputed. Deferred to the idle update tick so that rapid scroll
+    /// events don't queue up one `jj diff` per event.
+    diff_output_dirty: bool,
 
     config: Config,
 }
@@ -100,6 +105,7 @@ impl FilesTab {
             diff_output,
             diff_format,
             diff_panel: DetailsPanel::new(),
+            diff_output_dirty: false,
 
             config: commander.env.config.clone(),
         })
@@ -163,8 +169,11 @@ impl FilesTab {
         Ok(())
     }
 
-    fn scroll_files(&mut self, commander: &mut Commander, scroll: isize) -> Result<()> {
+    fn scroll_files(&mut self, scroll: isize) {
         if let Ok(files) = self.files_output.as_ref() {
+            if files.is_empty() {
+                return;
+            }
             let current_file_index = self.get_current_file_index();
             let next_file = match current_file_index {
                 Some(current_file_index) => files.get(
@@ -177,8 +186,19 @@ impl FilesTab {
             .map(|x| x.to_owned());
             if let Some(next_file) = next_file {
                 self.file = Some(next_file.to_owned());
-                self.refresh_diff(commander)?;
+                self.diff_output_dirty = true;
             }
+        }
+    }
+
+    /// If the diff pane is stale, run `jj diff` to refresh it. Called from
+    /// `update()` only when the event queue is idle, so rapid scroll
+    /// events coalesce into a single refresh.
+    fn apply_deferred_refresh(&mut self, commander: &mut Commander) -> Result<()> {
+        if self.diff_output_dirty {
+            self.diff_output_dirty = false;
+            self.refresh_diff(commander)?;
+            self.diff_panel.scroll_to(0);
         }
         Ok(())
     }
@@ -191,6 +211,16 @@ impl Component for FilesTab {
         self.refresh_files(commander)?;
         self.refresh_diff(commander)?;
         Ok(())
+    }
+
+    fn update(&mut self, commander: &mut Commander) -> Result<Option<ComponentAction>> {
+        // Coalesce rapid scroll events: only refresh the diff pane once
+        // the input queue has drained, so fast wheel scrolling doesn't
+        // spawn a `jj diff` per event.
+        if self.diff_output_dirty && !event::poll(std::time::Duration::ZERO).unwrap_or(true) {
+            self.apply_deferred_refresh(commander)?;
+        }
+        Ok(None)
     }
 
     fn draw(
@@ -312,7 +342,7 @@ impl Component for FilesTab {
         // Draw diff
         {
             let diff_content = match self.diff_output.as_ref() {
-                Ok(Some(diff_content)) => diff_content.into_text()?,
+                Ok(Some(diff_content)) => tint_git_diff(diff_content.into_text()?),
                 Ok(None) => Text::default(),
                 Err(err) => err.into_text("Error getting diff")?,
             };
@@ -337,16 +367,13 @@ impl Component for FilesTab {
             }
 
             match key.code {
-                KeyCode::Char('j') | KeyCode::Down => self.scroll_files(commander, 1)?,
-                KeyCode::Char('k') | KeyCode::Up => self.scroll_files(commander, -1)?,
+                KeyCode::Char('j') | KeyCode::Down => self.scroll_files(1),
+                KeyCode::Char('k') | KeyCode::Up => self.scroll_files(-1),
                 KeyCode::Char('J') => {
-                    self.scroll_files(commander, self.files_height as isize / 2)?;
+                    self.scroll_files(self.files_height as isize / 2);
                 }
                 KeyCode::Char('K') => {
-                    self.scroll_files(
-                        commander,
-                        (self.files_height as isize / 2).saturating_neg(),
-                    )?;
+                    self.scroll_files((self.files_height as isize / 2).saturating_neg());
                 }
                 KeyCode::Char('w') => {
                     self.diff_format = self.diff_format.get_next(self.config.diff_tool());

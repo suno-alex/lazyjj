@@ -1,4 +1,8 @@
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style, Stylize},
+    text::{Line, Span, Text},
+};
 
 pub fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
     let popup_layout = Layout::default()
@@ -114,4 +118,70 @@ pub fn tabs_to_spaces(line: &str) -> String {
         }
     }
     out
+}
+
+const DIFF_ADDED_BG: Color = Color::Rgb(20, 60, 20);
+const DIFF_REMOVED_BG: Color = Color::Rgb(70, 25, 25);
+
+/// Apply GitHub-style line backgrounds to a `jj diff --git` text: light
+/// green for added lines, light red for removed lines. All diff body
+/// lines (added, removed, and context) render in white. `diff --git`
+/// and `index` header lines are dropped; `---`/`+++` and hunk headers
+/// (`@@`) are left untouched. A `+N -M` summary line is prepended when
+/// the text contains any body changes.
+pub fn tint_git_diff(mut text: Text<'_>) -> Text<'_> {
+    text.lines.retain(|line| {
+        !(line_starts_with(line, "diff --git ") || line_starts_with(line, "index "))
+    });
+
+    let mut added = 0u32;
+    let mut removed = 0u32;
+
+    for line in &mut text.lines {
+        let Some(first) = line_leading_char(line) else {
+            continue;
+        };
+        let line_style = match first {
+            '+' if !line_starts_with(line, "+++") => {
+                added += 1;
+                Style::default().bg(DIFF_ADDED_BG).fg(Color::White)
+            }
+            '-' if !line_starts_with(line, "---") => {
+                removed += 1;
+                Style::default().bg(DIFF_REMOVED_BG).fg(Color::White)
+            }
+            ' ' => Style::default().fg(Color::White),
+            _ => continue,
+        };
+        line.style = line.style.patch(line_style);
+        for span in &mut line.spans {
+            span.style = span.style.patch(line_style);
+        }
+    }
+
+    if added > 0 || removed > 0 {
+        let summary = Line::from(vec![
+            Span::styled(
+                format!("+{added}"),
+                Style::default().fg(Color::Green).bold(),
+            ),
+            Span::raw(" "),
+            Span::styled(format!("-{removed}"), Style::default().fg(Color::Red).bold()),
+        ]);
+        text.lines.insert(0, summary);
+    }
+
+    text
+}
+
+fn line_leading_char(line: &Line<'_>) -> Option<char> {
+    line.spans
+        .iter()
+        .flat_map(|span| span.content.chars())
+        .next()
+}
+
+fn line_starts_with(line: &Line<'_>, prefix: &str) -> bool {
+    let mut chars = line.spans.iter().flat_map(|span| span.content.chars());
+    prefix.chars().all(|p| chars.next() == Some(p))
 }

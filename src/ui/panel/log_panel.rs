@@ -242,6 +242,9 @@ impl<'a> LogPanel<'a> {
         };
 
         let heads: &Vec<Head> = log_output.heads.as_ref();
+        if heads.is_empty() {
+            return;
+        }
 
         let current_head_index = self.get_current_head_index();
         let next_head = match current_head_index {

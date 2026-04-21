@@ -263,11 +263,13 @@ impl<'a> App<'a> {
                     if let Event::Key(key) = event
                         && key.kind == event::KeyEventKind::Press
                     {
-                        // Close
+                        // Close. Esc is intentionally not a quit shortcut — on
+                        // some terminals, rapid mouse events produce stray
+                        // bare-Esc key events that would otherwise quit the
+                        // app mid-scroll.
                         if key.code == KeyCode::Char('q')
                             || (key.modifiers.contains(KeyModifiers::CONTROL)
                                 && (key.code == KeyCode::Char('c')))
-                            || key.code == KeyCode::Esc
                         {
                             return Ok(true);
                         }

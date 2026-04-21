@@ -3,7 +3,7 @@
 use ansi_to_tui::IntoText;
 use anyhow::Result;
 use ratatui::{
-    crossterm::event::{Event, KeyEventKind},
+    crossterm::event::{self, Event, KeyEventKind},
     layout::Rect,
     prelude::*,
     widgets::*,
@@ -26,7 +26,7 @@ use crate::{
         panel::DetailsPanel,
         panel::LogPanel,
         rebase_popup::RebasePopup,
-        utils::{centered_rect, centered_rect_line_height, tabs_to_spaces},
+        utils::{centered_rect, centered_rect_line_height, tabs_to_spaces, tint_git_diff},
     },
 };
 
@@ -45,6 +45,10 @@ pub struct LogTab<'a> {
     /// The change content shown to the right
     head_panel: DetailsPanel,
     head_output: Result<String, CommandError>,
+    /// When true, `head_output` is stale relative to `head` and should be
+    /// recomputed. Deferred to the idle update tick so that rapid scroll
+    /// events don't queue up one `jj show` per event.
+    head_output_dirty: bool,
 
     /// The currently selected change. Indicates what to render
     /// in head_output. It is a copy of self.log_panel.head,
@@ -107,6 +111,7 @@ impl<'a> LogTab<'a> {
             head,
             head_panel: DetailsPanel::new(),
             head_output,
+            head_output_dirty: false,
 
             panel_rect: [Rect::ZERO, Rect::ZERO],
 
@@ -131,10 +136,21 @@ impl<'a> LogTab<'a> {
         })
     }
 
-    /// Update change details panel
-    fn sync_head_output(&mut self, commander: &mut Commander) {
+    /// Mark the change details as needing a refresh. Cheap — the actual
+    /// `jj show` runs later via `apply_deferred_refresh`.
+    fn sync_head_output(&mut self) {
         self.head = self.log_panel.head.clone();
-        self.refresh_head_output(commander);
+        self.head_output_dirty = true;
+    }
+
+    /// If the details pane is stale, run `jj show` to refresh it. Called
+    /// from `update()` only when the event queue is idle, so rapid scroll
+    /// events coalesce into a single refresh.
+    fn apply_deferred_refresh(&mut self, commander: &mut Commander) {
+        if self.head_output_dirty {
+            self.head_output_dirty = false;
+            self.refresh_head_output(commander);
+        }
     }
 
     fn refresh_head_output(&mut self, commander: &mut Commander) {
@@ -160,7 +176,7 @@ impl<'a> LogTab<'a> {
     pub fn set_head(&mut self, commander: &mut Commander, head: Head) {
         self.log_panel.set_head(head);
         self.log_panel.refresh_log_output(commander);
-        self.sync_head_output(commander);
+        self.sync_head_output();
     }
 
     fn handle_event(
@@ -174,7 +190,7 @@ impl<'a> LogTab<'a> {
             | LogTabEvent::ScrollDownHalf
             | LogTabEvent::ScrollUpHalf => {
                 self.log_panel.handle_event(commander, log_tab_event)?;
-                self.sync_head_output(commander);
+                self.sync_head_output();
             }
             LogTabEvent::FocusCurrent => {
                 self.set_head(commander, commander.get_current_head()?);
@@ -472,6 +488,13 @@ impl Component for LogTab<'_> {
             self.refresh_head_output(commander)
         }
 
+        // Coalesce rapid scroll events: only refresh the details pane once
+        // the input queue has drained, so fast wheel scrolling doesn't
+        // spawn a `jj show` per event.
+        if self.head_output_dirty && !event::poll(std::time::Duration::ZERO).unwrap_or(true) {
+            self.apply_deferred_refresh(commander);
+        }
+
         Ok(None)
     }
 
@@ -495,7 +518,7 @@ impl Component for LogTab<'_> {
         // Draw change details
         {
             let head_content = match self.head_output.as_ref() {
-                Ok(head_output) => head_output.into_text()?.lines,
+                Ok(head_output) => tint_git_diff(head_output.into_text()?).lines,
                 Err(err) => err.into_text("Error getting head details")?.lines,
             };
             self.head_panel
@@ -696,7 +719,7 @@ impl Component for LogTab<'_> {
 
             let input_result = self.log_panel.input(commander, event)?;
             if input_result.is_handled() {
-                self.sync_head_output(commander);
+                self.sync_head_output();
                 return Ok(input_result);
             }
 
@@ -707,7 +730,7 @@ impl Component for LogTab<'_> {
         if let Event::Mouse(mouse_event) = event {
             let input_result = self.log_panel.input(commander, event.clone())?;
             if input_result.is_handled() {
-                self.sync_head_output(commander);
+                self.sync_head_output();
                 return Ok(input_result);
             }
             if self.head_panel.input_mouse(mouse_event) {
