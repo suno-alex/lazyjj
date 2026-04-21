@@ -1,15 +1,21 @@
 /*! The log panel shows the list of changes on the left side of the
 log tab. */
 
+use std::time::{Duration, Instant};
+
 use ansi_to_tui::IntoText;
 use anyhow::Result;
 use ratatui::{
-    crossterm::event::{Event, MouseEvent, MouseEventKind},
+    crossterm::event::{Event, MouseButton, MouseEvent, MouseEventKind},
     layout::Rect,
     prelude::*,
     text::ToText,
     widgets::*,
 };
+
+/// Maximum delay between two clicks on the same line to be treated as a
+/// double-click.
+const DOUBLE_CLICK_THRESHOLD: Duration = Duration::from_millis(400);
 
 use crate::{
     commander::{
@@ -52,6 +58,13 @@ pub struct LogPanel<'a> {
 
     /// Rect used last time draw was called. Can be used to check if mouse clicks
     panel_rect: Rect,
+
+    /// Last left-click timestamp and line index, used for double-click detection.
+    last_click: Option<(Instant, usize)>,
+
+    /// Set when a double-click lands on a change; consumed by the parent
+    /// after `input` returns so it can trigger an edit.
+    pub double_click_pending: bool,
 
     config: Config,
 }
@@ -125,6 +138,9 @@ impl<'a> LogPanel<'a> {
             head,
 
             panel_rect: Rect::ZERO,
+
+            last_click: None,
+            double_click_pending: false,
 
             config: commander.env.config.clone(),
         })
@@ -361,7 +377,7 @@ impl Component for LogPanel<'_> {
                     self.handle_event(commander, LogTabEvent::ScrollDown)?;
                     return Ok(ComponentInputResult::Handled);
                 }
-                MouseEventKind::Up(_) => {
+                MouseEventKind::Up(MouseButton::Left) => {
                     // Check all items in list
 
                     // TODO make a function that constructs the log list
@@ -377,11 +393,30 @@ impl Component for LogPanel<'_> {
                         self.log_rect,
                         &self.log_list_state,
                         &mouse_event,
-                    ) && let Some(head) = self.head_at_log_line(inx)
-                    {
-                        self.set_head(head);
+                    ) {
+                        let now = Instant::now();
+                        let is_double_click = self
+                            .last_click
+                            .is_some_and(|(t, prev_inx)| {
+                                prev_inx == inx && now.duration_since(t) <= DOUBLE_CLICK_THRESHOLD
+                            });
+
+                        if let Some(head) = self.head_at_log_line(inx) {
+                            self.set_head(head);
+                        }
+
+                        if is_double_click {
+                            self.double_click_pending = true;
+                            // Reset so a third click doesn't chain into another edit.
+                            self.last_click = None;
+                        } else {
+                            self.last_click = Some((now, inx));
+                        }
+
+                        return Ok(ComponentInputResult::Handled);
                     }
                 }
+                MouseEventKind::Up(_) => {}
                 _ => {} // Handle other mouse events if necessary
             }
         }

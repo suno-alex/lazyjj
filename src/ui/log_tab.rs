@@ -729,6 +729,14 @@ impl Component for LogTab<'_> {
             let input_result = self.log_panel.input(commander, event.clone())?;
             if input_result.is_handled() {
                 self.sync_head_output();
+                if std::mem::take(&mut self.log_panel.double_click_pending) {
+                    return self.handle_event(
+                        commander,
+                        LogTabEvent::EditChange {
+                            ignore_immutable: false,
+                        },
+                    );
+                }
                 return Ok(input_result);
             }
             if self.head_panel.input_mouse(mouse_event) {
