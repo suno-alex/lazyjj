@@ -31,7 +31,6 @@ use crate::{
 };
 
 const NEW_POPUP_ID: u16 = 1;
-const EDIT_POPUP_ID: u16 = 2;
 const ABANDON_POPUP_ID: u16 = 3;
 const SQUASH_POPUP_ID: u16 = 4;
 
@@ -71,8 +70,6 @@ pub struct LogTab<'a> {
     rebase_popup: Option<RebasePopup>,
 
     squash_ignore_immutable: bool,
-
-    edit_ignore_immutable: bool,
 
     config: Config,
     keybinds: LogTabKeybinds,
@@ -128,8 +125,6 @@ impl<'a> LogTab<'a> {
             rebase_popup: None,
 
             squash_ignore_immutable: false,
-
-            edit_ignore_immutable: false,
 
             config: commander.env.config.clone(),
             keybinds,
@@ -277,24 +272,12 @@ impl<'a> LogTab<'a> {
                     ));
                 }
 
-                let mut lines = vec![
-                    Line::from("Are you sure you want to edit an existing change?"),
-                    Line::from(format!("Change: {}", self.head.change_id.as_str())),
-                ];
-                if ignore_immutable {
-                    lines.push(Line::from("This change is immutable."))
-                }
-                self.popup = ConfirmDialogState::new(
-                    EDIT_POPUP_ID,
-                    Span::styled(" Edit ", Style::new().bold().cyan()),
-                    Text::from(lines).fg(Color::default()),
-                );
-                self.popup
-                    .with_yes_button(ButtonLabel::YES.clone())
-                    .with_no_button(ButtonLabel::NO.clone())
-                    .with_listener(Some(self.popup_tx.clone()))
-                    .open();
-                self.edit_ignore_immutable = ignore_immutable;
+                commander.run_edit(self.head.commit_id.as_str(), ignore_immutable)?;
+                self.log_panel.refresh_log_output(commander);
+                self.refresh_head_output(commander);
+                return Ok(ComponentInputResult::HandledAction(
+                    ComponentAction::ChangeHead(self.head.clone()),
+                ));
             }
             LogTabEvent::Abandon => {
                 if self.head.immutable {
@@ -461,12 +444,6 @@ impl Component for LogTab<'_> {
                         let textarea = TextArea::default();
                         self.describe_textarea = Some(textarea);
                     }
-                    return Ok(Some(ComponentAction::ChangeHead(self.head.clone())));
-                }
-                EDIT_POPUP_ID => {
-                    commander.run_edit(self.head.commit_id.as_str(), self.edit_ignore_immutable)?;
-                    self.log_panel.refresh_log_output(commander);
-                    self.refresh_head_output(commander);
                     return Ok(Some(ComponentAction::ChangeHead(self.head.clone())));
                 }
                 ABANDON_POPUP_ID => {
