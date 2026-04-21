@@ -5,7 +5,6 @@ use std::{
     fs::{OpenOptions, canonicalize},
     io::{self, ErrorKind},
     process::Command,
-    time::Instant,
 };
 
 use anyhow::{Context, Result, bail};
@@ -25,8 +24,6 @@ use ratatui::{
             supports_keyboard_enhancement,
         },
     },
-    layout::{Alignment, Rect},
-    widgets::Paragraph,
 };
 use tracing::{info, trace_span};
 use tracing_chrome::ChromeLayerBuilder;
@@ -154,7 +151,6 @@ fn run_app<B: Backend>(
     app: &mut App,
     commander: &mut Commander,
 ) -> Result<()> {
-    let mut start_time = Instant::now();
     let mut drawing_popup = false;
     loop {
         // Draw
@@ -189,19 +185,6 @@ fn run_app<B: Backend>(
             let draw_span = trace_span!("draw");
             terminal_draw_res = draw_span.in_scope(|| -> Result<()> {
                 ui(f, app)?;
-
-                {
-                    let paragraph =
-                        Paragraph::new(format!("{}ms", start_time.elapsed().as_millis()))
-                            .alignment(Alignment::Right);
-                    let position = Rect {
-                        x: 0,
-                        y: 1,
-                        height: 1,
-                        width: f.area().width - 1,
-                    };
-                    f.render_widget(paragraph, position);
-                }
                 Ok(())
             });
         })?;
@@ -226,8 +209,6 @@ fn run_app<B: Backend>(
                     ..
                 }) => continue,
                 event => {
-                    start_time = Instant::now();
-
                     let should_stop = input_spawn.in_scope(|| -> Result<bool> {
                         if app.input(event, commander)? {
                             return Ok(true);

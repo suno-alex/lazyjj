@@ -90,7 +90,7 @@ pub fn ui(f: &mut Frame, app: &mut App) -> Result<()> {
             .fg(Color::DarkGray)
             .block(
                 Block::bordered()
-                    .title(" lazyjj ")
+                    .title(concat!(" lazyjj v", env!("CARGO_PKG_VERSION"), " "))
                     .border_type(BorderType::Rounded)
                     .fg(Color::default()),
             );
