@@ -275,9 +275,9 @@ impl<'a> App<'a> {
                         }
                         //
                         // Tab switching
-                        else if key.code == KeyCode::Char('l') {
+                        else if key.code == KeyCode::Char('l') || key.code == KeyCode::Right {
                             self.set_next_tab_with_offset(commander, 1)?;
-                        } else if key.code == KeyCode::Char('h') {
+                        } else if key.code == KeyCode::Char('h') || key.code == KeyCode::Left {
                             self.set_next_tab_with_offset(commander, -1)?;
                         } else if let Some((_, tab)) =
                             Tab::VALUES.iter().enumerate().find(|(i, _)| {
