@@ -359,7 +359,7 @@ impl Component for LogPanel<'_> {
         Ok(())
     }
 
-    fn input(&mut self, commander: &mut Commander, event: Event) -> Result<ComponentInputResult> {
+    fn input(&mut self, _commander: &mut Commander, event: Event) -> Result<ComponentInputResult> {
         if let Event::Mouse(mouse_event) = event {
             // Determine if mouse event is inside log-view
             let mouse_pos = Position::new(mouse_event.column, mouse_event.row);
@@ -369,14 +369,6 @@ impl Component for LogPanel<'_> {
 
             // Execute command dependent on panel and event kind
             match mouse_event.kind {
-                MouseEventKind::ScrollUp => {
-                    self.handle_event(commander, LogTabEvent::ScrollUp)?;
-                    return Ok(ComponentInputResult::Handled);
-                }
-                MouseEventKind::ScrollDown => {
-                    self.handle_event(commander, LogTabEvent::ScrollDown)?;
-                    return Ok(ComponentInputResult::Handled);
-                }
                 MouseEventKind::Up(MouseButton::Left) => {
                     // Check all items in list
 
