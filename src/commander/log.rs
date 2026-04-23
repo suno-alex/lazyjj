@@ -27,6 +27,7 @@ pub struct Head {
     pub commit_id: CommitId,
     pub divergent: bool,
     pub immutable: bool,
+    pub signed: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -46,13 +47,12 @@ impl Display for HeadParseError {
     }
 }
 
-// Template which outputs `[change_id|commit_id|divergent]`. Used to parse data from log and other
-// commands which supports templating.
-const HEAD_TEMPLATE: &str =
-    r#""[" ++ change_id ++ "|" ++ commit_id ++ "|" ++ divergent ++ "|" ++ immutable ++ "]""#;
+// Template which outputs `[change_id|commit_id|divergent|immutable|signed]`. Used to parse data
+// from log and other commands which supports templating.
+const HEAD_TEMPLATE: &str = r#""[" ++ change_id ++ "|" ++ commit_id ++ "|" ++ divergent ++ "|" ++ immutable ++ "|" ++ if(self.signature(), "true", "false") ++ "]""#;
 // Regex to parse HEAD_TEMPLATE
 static HEAD_TEMPLATE_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\[(.*)\|(.*)\|(.*)\|(.*)\]").unwrap());
+    LazyLock::new(|| Regex::new(r"\[(.*)\|(.*)\|(.*)\|(.*)\|(.*)\]").unwrap());
 
 // Parse a head with HEAD_TEMPLATE.
 fn parse_head(text: &str) -> Result<Head> {
@@ -60,23 +60,31 @@ fn parse_head(text: &str) -> Result<Head> {
     captured
         .as_ref()
         .map_or(Err(anyhow!(HeadParseError(text.to_owned()))), |captured| {
-            if let (Some(change_id), Some(commit_id), Some(divergent), Some(immutable)) = (
+            if let (Some(change_id), Some(commit_id), Some(divergent), Some(immutable), Some(signed)) = (
                 captured.get(1),
                 captured.get(2),
                 captured.get(3),
                 captured.get(4),
+                captured.get(5),
             ) {
                 Ok(Head {
                     change_id: ChangeId(change_id.as_str().to_string()),
                     commit_id: CommitId(commit_id.as_str().to_string()),
                     divergent: divergent.as_str() == "true",
                     immutable: immutable.as_str() == "true",
+                    signed: signed.as_str() == "true",
                 })
             } else {
                 bail!(HeadParseError(text.to_owned()))
             }
         })
 }
+
+// Override template aliases used by builtin_log_compact so the change list
+// row shows just the author's email local-part (e.g. "alex") and a compact
+// "MM-DD HH:MM" timestamp.
+const SHORT_AUTHOR_ALIAS: &str = r#"template-aliases."format_short_signature(signature)"="coalesce(signature.email().local(), email_placeholder)""#;
+const SHORT_TIMESTAMP_ALIAS: &str = r#"template-aliases."format_timestamp(timestamp)"="timestamp.local().format(\"%m-%d %H:%M\")""#;
 
 impl Commander {
     /// Get log. Returns human readable log and mapping to log line to head.
@@ -93,7 +101,15 @@ impl Commander {
         // Force builtin_log_compact which uses 2 lines per change
         let graph = self.execute_jj_command(
             [
-                vec!["log", "--template", "builtin_log_compact"],
+                vec![
+                    "--config",
+                    SHORT_AUTHOR_ALIAS,
+                    "--config",
+                    SHORT_TIMESTAMP_ALIAS,
+                    "log",
+                    "--template",
+                    "builtin_log_compact",
+                ],
                 args.clone(),
             ]
             .concat(),
@@ -411,6 +427,7 @@ mod tests {
                 change_id: ChangeId("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz".to_owned()),
                 divergent: false,
                 immutable: true,
+                signed: false,
             }
         );
 

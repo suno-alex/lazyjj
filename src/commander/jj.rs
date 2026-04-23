@@ -62,6 +62,13 @@ impl Commander {
         Ok(self.execute_void_jj_command(vec!["rebase", src_mode, src_rev, tgt_mode, tgt_rev])?)
     }
 
+    /// Sign a revision. Maps to `jj sign -r <revision>`
+    #[instrument(level = "trace", skip(self))]
+    pub fn run_sign(&self, revision: &str) -> Result<()> {
+        self.execute_void_jj_command(vec!["sign", "-r", revision])
+            .context("Failed executing jj sign")
+    }
+
     /// Squash changes. Maps to `jj squash -u --into <revision>`
     #[instrument(level = "trace", skip(self))]
     pub fn run_squash(&mut self, revision: &str, ignore_immutable: bool) -> Result<()> {

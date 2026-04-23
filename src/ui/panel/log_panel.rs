@@ -184,8 +184,21 @@ impl<'a> LogPanel<'a> {
                 // Add padding at start
                 line.spans.insert(0, Span::from(" "));
 
-                // Highlight lines that correspond to self.head
                 let line_head = log_output.graph_heads.get(i).unwrap_or(&None);
+
+                // Append a "(V)" marker on the first line of each change
+                // (each change spans two lines in builtin_log_compact)
+                let is_first_line_of_change = line_head.is_some()
+                    && (i == 0 || log_output.graph_heads.get(i - 1).unwrap_or(&None) != line_head);
+                if is_first_line_of_change
+                    && let Some(head) = line_head
+                    && head.signed
+                {
+                    line.spans
+                        .push(Span::styled(" (V)", Style::default().fg(Color::Green)));
+                }
+
+                // Highlight lines that correspond to self.head
                 if let Some(line_change) = line_head
                     && line_change == &self.head
                 {

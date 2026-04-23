@@ -339,6 +339,34 @@ impl<'a> LogTab<'a> {
                     return Ok(ComponentInputResult::Handled);
                 }
             }
+            LogTabEvent::Sign => {
+                if self.head.immutable {
+                    return Ok(ComponentInputResult::HandledAction(
+                        ComponentAction::SetPopup(Some(Box::new(MessagePopup {
+                            title: "Sign".into(),
+                            messages: vec![
+                                "The change cannot be signed because it is immutable.".into(),
+                            ]
+                            .into(),
+                            text_align: None,
+                        }))),
+                    ));
+                }
+
+                if let Err(err) = commander.run_sign(self.head.change_id.as_str()) {
+                    return Ok(ComponentInputResult::HandledAction(
+                        ComponentAction::SetPopup(Some(Box::new(MessagePopup {
+                            title: "Sign".into(),
+                            messages: err.to_string().into_text()?,
+                            text_align: None,
+                        }))),
+                    ));
+                }
+                self.set_head(commander, commander.get_head_latest(&self.head)?);
+                return Ok(ComponentInputResult::HandledAction(
+                    ComponentAction::ChangeHead(self.head.clone()),
+                ));
+            }
             LogTabEvent::EditRevset => {
                 let mut textarea = TextArea::new(
                     self.log_panel
@@ -508,7 +536,7 @@ impl Component for LogTab<'_> {
 
         // Draw change details
         {
-            let head_content = match self.head_output.as_ref() {
+            let mut head_content = match self.head_output.as_ref() {
                 Ok(head_output) => {
                     let text = head_output.into_text()?;
                     if matches!(self.diff_format, DiffFormat::Git) {
@@ -519,6 +547,21 @@ impl Component for LogTab<'_> {
                 }
                 Err(err) => err.into_text("Error getting head details")?.lines,
             };
+
+            // Append a green "(Verified)" marker on the Commit ID line for
+            // signed commits. The line is rendered by `jj show` as
+            // "Commit ID: <hash>".
+            if self.head.signed
+                && let Some(commit_id_line) = head_content
+                    .iter_mut()
+                    .find(|line| line.spans.iter().any(|s| s.content.contains("Commit ID:")))
+            {
+                commit_id_line.spans.push(Span::styled(
+                    " (Verified)",
+                    Style::default().fg(Color::Green),
+                ));
+            }
+
             self.head_panel
                 .render_context()
                 .title(format!(" Details for {} ", self.head.change_id))

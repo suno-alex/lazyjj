@@ -39,6 +39,7 @@ pub struct LogTabKeybindsConfig {
     pub edit_change_ignore_immutable: Option<Keybind>,
     pub abandon: Option<Keybind>,
     pub describe: Option<Keybind>,
+    pub sign: Option<Keybind>,
     pub edit_revset: Option<Keybind>,
     pub set_bookmark: Option<Keybind>,
     pub open_files: Option<Keybind>,
