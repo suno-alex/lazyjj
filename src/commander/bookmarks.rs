@@ -163,6 +163,31 @@ impl Commander {
         Ok(bookmarks)
     }
 
+    /// Check if any local bookmark points at the given commit.
+    /// Maps to `jj bookmark list -r <commit>`.
+    #[instrument(level = "trace", skip(self))]
+    pub fn has_local_bookmark_at_commit(
+        &self,
+        commit_id: &crate::commander::ids::CommitId,
+    ) -> Result<bool, CommandError> {
+        let args = vec![
+            "bookmark".to_owned(),
+            "list".to_owned(),
+            "-r".to_owned(),
+            commit_id.as_str().to_owned(),
+            "-T".to_owned(),
+            format!(r#"if(present, {} ++ "\n", "")"#, BRANCH_TEMPLATE),
+        ];
+
+        let has_local = self
+            .execute_jj_command(args, false, true)?
+            .lines()
+            .filter_map(parse_bookmark)
+            .any(|b| b.remote.is_none());
+
+        Ok(has_local)
+    }
+
     /// Get bookmark details.
     /// Maps to `jj show <bookmark>`
     #[instrument(level = "trace", skip(self))]

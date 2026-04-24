@@ -81,10 +81,10 @@ fn parse_head(text: &str) -> Result<Head> {
 }
 
 // Override template aliases used by builtin_log_compact so the change list
-// row shows just the author's email local-part (e.g. "alex") and a compact
-// "MM-DD HH:MM" timestamp.
+// row shows just the author's email local-part (e.g. "alex") and a friendly
+// "Mon D, h:mmam/pm" timestamp.
 const SHORT_AUTHOR_ALIAS: &str = r#"template-aliases."format_short_signature(signature)"="coalesce(signature.email().local(), email_placeholder)""#;
-const SHORT_TIMESTAMP_ALIAS: &str = r#"template-aliases."format_timestamp(timestamp)"="timestamp.local().format(\"%m-%d %H:%M\")""#;
+const SHORT_TIMESTAMP_ALIAS: &str = r#"template-aliases."format_timestamp(timestamp)"="timestamp.local().format(\"%b %-d, %-I:%M%P\")""#;
 
 impl Commander {
     /// Get log. Returns human readable log and mapping to log line to head.

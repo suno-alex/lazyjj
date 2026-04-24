@@ -5,7 +5,11 @@ The module implementes a number of jj commands.
 Surprisingly, this module also contains jj bookmark commands.
 These functions are used everywhere (bookmark tab, log tab).
 */
-use crate::commander::{CommandError, Commander, bookmarks::Bookmark, ids::CommitId};
+use crate::commander::{
+    CommandError, Commander,
+    bookmarks::Bookmark,
+    ids::{ChangeId, CommitId},
+};
 
 use anyhow::{Context, Result};
 use tracing::instrument;
@@ -159,23 +163,45 @@ impl Commander {
         self.execute_void_jj_command(vec!["bookmark", "untrack", &bookmark.to_string()])
     }
 
-    /// Git push. Maps to `jj git push`
+    /// Git push. Maps to `jj git push`. Signs any unsigned commits in the
+    /// push range first so what reaches the remote is always signed.
     #[instrument(level = "trace", skip(self))]
     pub fn git_push(
         &self,
         all_bookmarks: bool,
         allow_new: bool,
-        commit_id: &CommitId,
+        change_id: &ChangeId,
     ) -> Result<String, CommandError> {
+        // Revset of commits that `jj git push` would send to the remote:
+        // `--all` pushes everything reachable from local bookmarks but not
+        // from any remote bookmark; a targeted push covers the range from
+        // any remote bookmark up to the target change.
+        let push_revset = if all_bookmarks {
+            "remote_bookmarks()..bookmarks()".to_string()
+        } else {
+            format!("remote_bookmarks()..change_id({})", change_id.as_str())
+        };
+        let unsigned_revset = format!("({push_revset}) & mutable() & ~signed()");
+
+        // `jj sign` is a no-op for an empty revset, so this is safe to call
+        // unconditionally. A failure here (e.g. misconfigured signing
+        // backend) surfaces before we touch the remote.
+        self.execute_void_jj_command(vec!["sign", "-r", &unsigned_revset])?;
+
         let mut args = vec!["git", "push"];
         if allow_new {
             args.push("--allow-new");
         }
+        // Push by change_id rather than commit_id: signing rewrites commit
+        // IDs but preserves change IDs, so this revset still resolves to
+        // the right tip whether or not signing happened.
+        let target_revset;
         if all_bookmarks {
             args.push("--all");
         } else {
+            target_revset = format!("change_id({})", change_id.as_str());
             args.push("-r");
-            args.push(commit_id.as_str());
+            args.push(&target_revset);
         }
 
         self.execute_jj_command(args, true, true)

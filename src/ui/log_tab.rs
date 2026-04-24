@@ -14,7 +14,7 @@ use tui_textarea::{CursorMove, TextArea};
 
 use crate::{
     ComponentInputResult, clipboard,
-    commander::{CommandError, Commander, log::Head},
+    commander::{CommandError, Commander, ids::ChangeId, log::Head},
     env::{Config, DiffFormat},
     keybinds::{LogTabEvent, LogTabKeybinds},
     ui::{
@@ -67,6 +67,11 @@ pub struct LogTab<'a> {
 
     bookmark_set_popup_tx: std::sync::mpsc::Sender<bool>,
     bookmark_set_popup_rx: std::sync::mpsc::Receiver<bool>,
+
+    /// A push was requested on a commit without a bookmark. The
+    /// BookmarkSetPopup is open; when it completes successfully, push this
+    /// change with the stored flags.
+    pending_push: Option<(ChangeId, bool, bool)>,
 
     describe_textarea: Option<TextArea<'a>>,
     describe_after_new: bool,
@@ -123,6 +128,8 @@ impl<'a> LogTab<'a> {
 
             bookmark_set_popup_tx,
             bookmark_set_popup_rx,
+
+            pending_push: None,
 
             describe_textarea: None,
             describe_after_new: false,
@@ -406,11 +413,28 @@ impl<'a> LogTab<'a> {
                 all_bookmarks,
                 allow_new,
             } => {
-                let commit_id = self.head.commit_id.clone();
-                let commander_clone = Commander::new(&commander.env);
+                let change_id = self.head.change_id.clone();
 
+                if !all_bookmarks
+                    && !commander
+                        .has_local_bookmark_at_commit(&self.head.commit_id)
+                        .unwrap_or(true)
+                {
+                    self.pending_push = Some((change_id, all_bookmarks, allow_new));
+                    return Ok(ComponentInputResult::HandledAction(
+                        ComponentAction::SetPopup(Some(Box::new(BookmarkSetPopup::new(
+                            self.config.clone(),
+                            commander,
+                            Some(self.head.change_id.clone()),
+                            self.head.commit_id.clone(),
+                            self.bookmark_set_popup_tx.clone(),
+                        )))),
+                    ));
+                }
+
+                let commander_clone = Commander::new(&commander.env);
                 let loader = LoaderPopup::new("Pushing".to_string(), move || {
-                    commander_clone.git_push(all_bookmarks, allow_new, &commit_id)
+                    commander_clone.git_push(all_bookmarks, allow_new, &change_id)
                 });
 
                 return Ok(ComponentInputResult::HandledAction(
@@ -423,6 +447,30 @@ impl<'a> LogTab<'a> {
                 let loader = LoaderPopup::new("Fetching".to_string(), move || {
                     commander_clone.git_fetch(all_remotes)
                 });
+
+                return Ok(ComponentInputResult::HandledAction(
+                    ComponentAction::SetPopup(Some(Box::new(loader))),
+                ));
+            }
+            LogTabEvent::FetchRebase => {
+                let commander_clone = Commander::new(&commander.env);
+
+                let loader =
+                    LoaderPopup::new("Fetching and rebasing".to_string(), move || {
+                        let fetch_output = commander_clone.git_fetch(false)?;
+                        commander_clone.execute_jj_command(
+                            vec![
+                                "rebase",
+                                "-b",
+                                "(bookmarks() & mine()) | @",
+                                "-d",
+                                "main",
+                            ],
+                            true,
+                            true,
+                        )?;
+                        Ok(fetch_output)
+                    });
 
                 return Ok(ComponentInputResult::HandledAction(
                     ComponentAction::SetPopup(Some(Box::new(loader))),
@@ -501,9 +549,23 @@ impl Component for LogTab<'_> {
             }
         }
 
-        if let Ok(true) = self.bookmark_set_popup_rx.try_recv() {
-            self.log_panel.refresh_log_output(commander);
-            self.refresh_head_output(commander)
+        match self.bookmark_set_popup_rx.try_recv() {
+            Ok(true) => {
+                self.log_panel.refresh_log_output(commander);
+                self.refresh_head_output(commander);
+
+                if let Some((change_id, all_bookmarks, allow_new)) = self.pending_push.take() {
+                    let commander_clone = Commander::new(&commander.env);
+                    let loader = LoaderPopup::new("Pushing".to_string(), move || {
+                        commander_clone.git_push(all_bookmarks, allow_new, &change_id)
+                    });
+                    return Ok(Some(ComponentAction::SetPopup(Some(Box::new(loader)))));
+                }
+            }
+            Ok(false) => {
+                self.pending_push = None;
+            }
+            Err(_) => {}
         }
 
         // Coalesce rapid scroll events: only refresh the details pane once
@@ -558,7 +620,7 @@ impl Component for LogTab<'_> {
             {
                 commit_id_line.spans.push(Span::styled(
                     " (Verified)",
-                    Style::default().fg(Color::Green),
+                    Style::default().fg(Color::Blue),
                 ));
             }
 

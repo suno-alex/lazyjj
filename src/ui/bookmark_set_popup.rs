@@ -261,6 +261,7 @@ impl Component for BookmarkSetPopup<'_> {
                         ));
                     }
                     KeyCode::Esc => {
+                        self.tx.send(false)?;
                         return Ok(ComponentInputResult::HandledAction(
                             ComponentAction::SetPopup(None),
                         ));

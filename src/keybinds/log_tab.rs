@@ -55,6 +55,7 @@ pub enum LogTabEvent {
     Fetch {
         all_remotes: bool,
     },
+    FetchRebase,
 
     OpenHelp,
 
@@ -95,12 +96,13 @@ impl Default for LogTabKeybinds {
             LogTabEvent::SetBookmark => "b",
             LogTabEvent::OpenFiles => "enter",
             LogTabEvent::CopyChangeId => "y",
-            event_push(false, false) => "p",
-            event_push(false, true) => "ctrl+p",
+            event_push(false, true) => "p",
+            event_push(false, false) => "ctrl+p",
             event_push(true, false) => "shift+p",
             event_push(true, true) => "ctrl+shift+p",
             LogTabEvent::Fetch { all_remotes: false } => "f",
             LogTabEvent::Fetch { all_remotes: true } => "shift+f",
+            LogTabEvent::FetchRebase => "`",
             LogTabEvent::OpenHelp => "?",
         );
 
@@ -150,6 +152,7 @@ impl LogTabKeybinds {
             event_push(true, true) => config.push_all_new,
             LogTabEvent::Fetch { all_remotes: false } => config.fetch,
             LogTabEvent::Fetch { all_remotes: true } => config.fetch_all,
+            LogTabEvent::FetchRebase => config.fetch_rebase,
             LogTabEvent::OpenHelp => config.open_help,
         );
     }
@@ -160,14 +163,16 @@ impl LogTabKeybinds {
             LogTabEvent::ScrollUp => "scroll up",
             LogTabEvent::ScrollDownHalf => "scroll down by ½ page",
             LogTabEvent::ScrollUpHalf => "scroll up by ½ page",
-            LogTabEvent::OpenFiles => "see files",
-            LogTabEvent::FocusCurrent => "current change",
-            LogTabEvent::EditRevset => "set revset",
+            LogTabEvent::OpenFiles => "view files of change",
+            LogTabEvent::FocusCurrent => "jump to current change (@)",
+            LogTabEvent::EditRevset => "edit log revset",
+            LogTabEvent::Refresh => "refresh log",
             LogTabEvent::Describe => "describe change",
             LogTabEvent::EditChange { ignore_immutable: false } => "edit change",
             LogTabEvent::EditChange { ignore_immutable: true } => "edit change ignoring immutability",
             LogTabEvent::CreateNew { describe: false } => "new change",
-            LogTabEvent::CreateNew { describe: true } => "new with message",
+            LogTabEvent::CreateNew { describe: true } => "new change with message",
+            LogTabEvent::Duplicate => "duplicate change",
             LogTabEvent::Abandon => "abandon change",
             LogTabEvent::Sign => "sign change",
             LogTabEvent::Rebase => "rebase @ to the selected change",
@@ -177,8 +182,9 @@ impl LogTabKeybinds {
             LogTabEvent::CopyChangeId => "copy change ID to clipboard",
             LogTabEvent::Fetch { all_remotes: false } => "git fetch",
             LogTabEvent::Fetch { all_remotes: true } => "git fetch all remotes",
-            event_push(false, false) => "git push",
-            event_push(false, true) => "git push with new bookmarks",
+            LogTabEvent::FetchRebase => "git fetch and rebase my bookmarks onto main",
+            event_push(false, true) => "git push (prompt for bookmark if none)",
+            event_push(false, false) => "git push (fail if no bookmark)",
             event_push(true, false) => "git push all bookmarks, except new",
             event_push(true, true) => "git push all bookmarks",
         )

@@ -101,9 +101,20 @@ fn get_head_index(head: &Head, log_output: &Result<LogOutput, CommandError>) -> 
     }
 }
 
+/// Default revset when the user did not pass `-r`.
+/// Shows the latest trunk commit (the main used as base), the working-copy
+/// change `@` (including when it's empty), and the user's active bookmarks
+/// together with the chain of changes leading to them.
+const DEFAULT_REVSET: &str =
+    "present(@) | trunk() | (trunk()..@) | (trunk()..(bookmarks() & mine()))";
+
 impl<'a> LogPanel<'a> {
     pub fn new(commander: &mut Commander) -> Result<Self> {
-        let log_revset = commander.env.default_revset.clone();
+        let log_revset = commander
+            .env
+            .default_revset
+            .clone()
+            .or_else(|| Some(DEFAULT_REVSET.to_owned()));
         let log_output = commander.get_log(&log_revset);
         let head = commander.get_current_head()?;
 
@@ -194,8 +205,10 @@ impl<'a> LogPanel<'a> {
                     && let Some(head) = line_head
                     && head.signed
                 {
-                    line.spans
-                        .push(Span::styled(" (V)", Style::default().fg(Color::Green)));
+                    line.spans.push(Span::styled(
+                        " (V)",
+                        Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
+                    ));
                 }
 
                 // Highlight lines that correspond to self.head
@@ -336,10 +349,7 @@ impl Component for LogPanel<'_> {
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
         self.panel_rect = area;
 
-        let title = match &self.log_revset {
-            Some(log_revset) => &format!(" Log for: {log_revset} "),
-            None => " Log ",
-        };
+        let title = " Log ";
 
         let log_lines = self.log_lines();
         let log_length: usize = log_lines.len();
