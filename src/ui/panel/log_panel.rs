@@ -133,9 +133,10 @@ fn get_head_index(head: &Head, log_output: &Result<LogOutput, CommandError>) -> 
 /// Default revset when the user did not pass `-r`.
 /// Shows the latest trunk commit (the main used as base), the working-copy
 /// change `@` (including when it's empty), and the user's active bookmarks
-/// together with the chain of changes leading to them.
-const DEFAULT_REVSET: &str =
-    "present(@) | trunk() | (trunk()..@) | (trunk()..(bookmarks() & mine()))";
+/// together with the chain of changes leading to them and any descendants
+/// branching off them.
+const DEFAULT_REVSET: &str = "present(@) | trunk() \
+    | (trunk()..(bookmarks() & mine())) | ((bookmarks() & mine())::)";
 
 impl<'a> LogPanel<'a> {
     pub fn new(commander: &mut Commander) -> Result<Self> {
