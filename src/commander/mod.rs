@@ -22,6 +22,7 @@ command implementation functions:
 
 pub mod bookmarks;
 pub mod files;
+pub mod github;
 pub mod ids;
 pub mod jj;
 pub mod log;

@@ -189,16 +189,18 @@ impl Commander {
         self.execute_void_jj_command(vec!["sign", "-r", &unsigned_revset])?;
 
         let mut args = vec!["git", "push"];
-        if allow_new {
-            args.push("--allow-new");
-        }
-        // Push by change_id rather than commit_id: signing rewrites commit
-        // IDs but preserves change IDs, so this revset still resolves to
-        // the right tip whether or not signing happened.
         let target_revset;
         if all_bookmarks {
+            // `--all` already implies new bookmarks are allowed and rejects
+            // `--allow-new`, so don't pass both.
             args.push("--all");
         } else {
+            if allow_new {
+                args.push("--allow-new");
+            }
+            // Push by change_id rather than commit_id: signing rewrites commit
+            // IDs but preserves change IDs, so this revset still resolves to
+            // the right tip whether or not signing happened.
             target_revset = format!("change_id({})", change_id.as_str());
             args.push("-r");
             args.push(&target_revset);

@@ -21,13 +21,36 @@ use std::{fmt::Display, sync::LazyLock};
 use thiserror::Error;
 use tracing::instrument;
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub struct Head {
     pub change_id: ChangeId,
     pub commit_id: CommitId,
     pub divergent: bool,
     pub immutable: bool,
     pub signed: bool,
+    pub local_bookmarks: Vec<String>,
+}
+
+// Equality and hashing intentionally ignore `local_bookmarks` so that a
+// bookmark moving doesn't invalidate cached `head` references held by tabs.
+impl PartialEq for Head {
+    fn eq(&self, other: &Self) -> bool {
+        self.change_id == other.change_id
+            && self.commit_id == other.commit_id
+            && self.divergent == other.divergent
+            && self.immutable == other.immutable
+            && self.signed == other.signed
+    }
+}
+impl Eq for Head {}
+impl std::hash::Hash for Head {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.change_id.hash(state);
+        self.commit_id.hash(state);
+        self.divergent.hash(state);
+        self.immutable.hash(state);
+        self.signed.hash(state);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -47,12 +70,14 @@ impl Display for HeadParseError {
     }
 }
 
-// Template which outputs `[change_id|commit_id|divergent|immutable|signed]`. Used to parse data
-// from log and other commands which supports templating.
-const HEAD_TEMPLATE: &str = r#""[" ++ change_id ++ "|" ++ commit_id ++ "|" ++ divergent ++ "|" ++ immutable ++ "|" ++ if(self.signature(), "true", "false") ++ "]""#;
+// Template which outputs `[change_id|commit_id|divergent|immutable|signed|bookmarks]`.
+// Used to parse data from log and other commands which supports templating.
+// The `bookmarks` segment is a comma-separated list of local bookmark names
+// (may be empty).
+const HEAD_TEMPLATE: &str = r#""[" ++ change_id ++ "|" ++ commit_id ++ "|" ++ divergent ++ "|" ++ immutable ++ "|" ++ if(self.signature(), "true", "false") ++ "|" ++ local_bookmarks.map(|b| b.name()).join(",") ++ "]""#;
 // Regex to parse HEAD_TEMPLATE
 static HEAD_TEMPLATE_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\[(.*)\|(.*)\|(.*)\|(.*)\|(.*)\]").unwrap());
+    LazyLock::new(|| Regex::new(r"\[(.*)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)\]").unwrap());
 
 // Parse a head with HEAD_TEMPLATE.
 fn parse_head(text: &str) -> Result<Head> {
@@ -60,19 +85,34 @@ fn parse_head(text: &str) -> Result<Head> {
     captured
         .as_ref()
         .map_or(Err(anyhow!(HeadParseError(text.to_owned()))), |captured| {
-            if let (Some(change_id), Some(commit_id), Some(divergent), Some(immutable), Some(signed)) = (
+            if let (
+                Some(change_id),
+                Some(commit_id),
+                Some(divergent),
+                Some(immutable),
+                Some(signed),
+                Some(bookmarks),
+            ) = (
                 captured.get(1),
                 captured.get(2),
                 captured.get(3),
                 captured.get(4),
                 captured.get(5),
+                captured.get(6),
             ) {
+                let local_bookmarks = bookmarks
+                    .as_str()
+                    .split(',')
+                    .filter(|n| !n.is_empty())
+                    .map(str::to_owned)
+                    .collect();
                 Ok(Head {
                     change_id: ChangeId(change_id.as_str().to_string()),
                     commit_id: CommitId(commit_id.as_str().to_string()),
                     divergent: divergent.as_str() == "true",
                     immutable: immutable.as_str() == "true",
                     signed: signed.as_str() == "true",
+                    local_bookmarks,
                 })
             } else {
                 bail!(HeadParseError(text.to_owned()))
@@ -129,9 +169,7 @@ impl Commander {
                         "log",
                         "--template",
                         // Match builtin_log_compact with 2 lines per change
-                        &format!(
-                            r#"{HEAD_TEMPLATE} ++ " " ++ bookmarks ++"\n" ++ {HEAD_TEMPLATE}"#
-                        ),
+                        &format!(r#"{HEAD_TEMPLATE} ++ "\n" ++ {HEAD_TEMPLATE}"#),
                     ],
                     args,
                 ]
@@ -428,6 +466,7 @@ mod tests {
                 divergent: false,
                 immutable: true,
                 signed: false,
+                local_bookmarks: vec![],
             }
         );
 

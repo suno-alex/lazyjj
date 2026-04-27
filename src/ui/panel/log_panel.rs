@@ -17,9 +17,13 @@ use ratatui::{
 /// double-click.
 const DOUBLE_CLICK_THRESHOLD: Duration = Duration::from_millis(400);
 
+use std::collections::HashMap;
+
 use crate::{
     commander::{
         CommandError, Commander,
+        github::OpenPrs,
+        ids::ChangeId,
         log::{Head, LogOutput},
     },
     env::Config,
@@ -66,6 +70,9 @@ pub struct LogPanel<'a> {
     /// after `input` returns so it can trigger an edit.
     pub double_click_pending: bool,
 
+    open_prs: OpenPrs,
+    pr_by_change: HashMap<ChangeId, u32>,
+
     config: Config,
 }
 
@@ -84,6 +91,28 @@ pub enum LogPanelEvent {
     SetHead(Head),
 }
 */
+
+fn pr_by_change(
+    open_prs: &OpenPrs,
+    log_output: &Result<LogOutput, CommandError>,
+) -> HashMap<ChangeId, u32> {
+    let Ok(log_output) = log_output else {
+        return HashMap::new();
+    };
+    if open_prs.by_branch.is_empty() {
+        return HashMap::new();
+    }
+    log_output
+        .heads
+        .iter()
+        .filter_map(|head| {
+            head.local_bookmarks
+                .iter()
+                .find_map(|b| open_prs.pr_for_branch(b))
+                .map(|pr| (head.change_id.clone(), pr))
+        })
+        .collect()
+}
 
 fn get_head_index(head: &Head, log_output: &Result<LogOutput, CommandError>) -> Option<usize> {
     match log_output {
@@ -138,6 +167,9 @@ impl<'a> LogPanel<'a> {
             Err(_) => Text::default(),
         };
 
+        let open_prs = commander.get_open_prs();
+        let pr_by_change = pr_by_change(&open_prs, &log_output);
+
         Ok(Self {
             log_output_text,
             log_output,
@@ -153,8 +185,20 @@ impl<'a> LogPanel<'a> {
             last_click: None,
             double_click_pending: false,
 
+            open_prs,
+            pr_by_change,
+
             config: commander.env.config.clone(),
         })
+    }
+
+    pub fn selected_pr_number(&self) -> Option<u32> {
+        self.pr_by_change.get(&self.head.change_id).copied()
+    }
+
+    pub fn selected_pr_url(&self) -> Option<String> {
+        let pr = self.selected_pr_number()?;
+        Some(self.open_prs.repo.as_ref()?.pr_url(pr))
     }
 
     //
@@ -171,6 +215,9 @@ impl<'a> LogPanel<'a> {
                 .unwrap_or(Text::from("Could not turn text into TUI text (coloring)")),
             Err(_) => Text::default(),
         };
+
+        self.open_prs = commander.get_open_prs();
+        self.pr_by_change = pr_by_change(&self.open_prs, &self.log_output);
     }
 
     /// Convert log output to a list of formatted lines
@@ -203,12 +250,21 @@ impl<'a> LogPanel<'a> {
                     && (i == 0 || log_output.graph_heads.get(i - 1).unwrap_or(&None) != line_head);
                 if is_first_line_of_change
                     && let Some(head) = line_head
-                    && head.signed
                 {
-                    line.spans.push(Span::styled(
-                        " (V)",
-                        Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
-                    ));
+                    if head.signed {
+                        line.spans.push(Span::styled(
+                            " (V)",
+                            Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
+                        ));
+                    }
+                    if let Some(pr) = self.pr_by_change.get(&head.change_id) {
+                        line.spans.push(Span::styled(
+                            format!(" (PR #{pr})"),
+                            Style::default()
+                                .fg(Color::Blue)
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                    }
                 }
 
                 // Highlight lines that correspond to self.head

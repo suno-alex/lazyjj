@@ -404,6 +404,13 @@ impl<'a> LogTab<'a> {
                     ComponentAction::ViewFiles(self.head.clone()),
                 ));
             }
+            LogTabEvent::OpenPr => {
+                if let Some(url) = self.log_panel.selected_pr_url()
+                    && let Err(err) = open_url(&url)
+                {
+                    tracing::warn!("Failed to open PR URL {url}: {err}");
+                }
+            }
             LogTabEvent::CopyChangeId => {
                 if let Err(err) = clipboard::copy_to_clipboard(self.head.change_id.as_str()) {
                     tracing::warn!("Failed to copy change ID to clipboard: {err}");
@@ -503,6 +510,20 @@ impl<'a> LogTab<'a> {
         };
         Ok(ComponentInputResult::Handled)
     }
+}
+
+fn open_url(url: &str) -> std::io::Result<()> {
+    #[cfg(target_os = "macos")]
+    let program = "open";
+    #[cfg(target_os = "linux")]
+    let program = "xdg-open";
+    #[cfg(target_os = "windows")]
+    let program = "explorer";
+
+    // Spawn detached: `.status()` would block the TUI thread until the
+    // browser opener exits, which can be slow (xdg-open) or hang.
+    std::process::Command::new(program).arg(url).spawn()?;
+    Ok(())
 }
 
 impl Component for LogTab<'_> {
@@ -622,6 +643,23 @@ impl Component for LogTab<'_> {
                     " (Verified)",
                     Style::default().fg(Color::Blue),
                 ));
+            }
+
+            if let Some(pr) = self.log_panel.selected_pr_number()
+                && let Some(committer_idx) = head_content.iter().position(|line| {
+                    line.spans.iter().any(|s| s.content.contains("Committer:"))
+                })
+            {
+                let pr_line = Line::from(vec![
+                    Span::raw("PR       : "),
+                    Span::styled(
+                        format!("#{pr}"),
+                        Style::default()
+                            .fg(Color::Blue)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]);
+                head_content.insert(committer_idx + 1, pr_line);
             }
 
             self.head_panel
