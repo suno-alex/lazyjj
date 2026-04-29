@@ -54,6 +54,7 @@ pub struct LogTabKeybindsConfig {
     pub fetch: Option<Keybind>,
     pub fetch_all: Option<Keybind>,
     pub fetch_rebase: Option<Keybind>,
+    pub fetch_rebase_selected: Option<Keybind>,
 
     pub open_help: Option<Keybind>,
 }

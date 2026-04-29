@@ -92,8 +92,8 @@ See all key mappings for the current tab with `?`.
 - Display different revset with `r` (`jj log -r`)
 - Change details panel diff format between color words (default) and Git (and diff tool if set) with `w`
 - Toggle details panel wrapping with `W`
-- Create new change after highlighted change with `n` (`jj new`)
-  - Create new change and describe with `N` (`jj new -m`)
+- Create new change after highlighted change and prompt for description with `n` (`jj new` then describe)
+  - Create new change without description with `N` (`jj new`)
 - Edit highlighted change with `e` (`jj edit`)
   - Edit highlighted change ignoring immutability with `E` (`jj edit --ignore-immutable`)
 - Abandon a change with `a` (`jj abandon`)

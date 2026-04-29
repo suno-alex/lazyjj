@@ -483,6 +483,27 @@ impl<'a> LogTab<'a> {
                     ComponentAction::SetPopup(Some(Box::new(loader))),
                 ));
             }
+            LogTabEvent::FetchRebaseSelected => {
+                let commander_clone = Commander::new(&commander.env);
+                let change_id = self.head.change_id.clone();
+
+                let loader = LoaderPopup::new(
+                    "Fetching and rebasing selected change".to_string(),
+                    move || {
+                        let fetch_output = commander_clone.git_fetch(false)?;
+                        commander_clone.execute_jj_command(
+                            vec!["rebase", "-s", change_id.as_str(), "-d", "main"],
+                            true,
+                            true,
+                        )?;
+                        Ok(fetch_output)
+                    },
+                );
+
+                return Ok(ComponentInputResult::HandledAction(
+                    ComponentAction::SetPopup(Some(Box::new(loader))),
+                ));
+            }
             LogTabEvent::OpenHelp => {
                 return Ok(ComponentInputResult::HandledAction(
                     ComponentAction::SetPopup(Some(Box::new(HelpPopup::new(
