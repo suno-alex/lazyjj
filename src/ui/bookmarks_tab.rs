@@ -44,7 +44,6 @@ struct ForgetBookmark {
 
 const DELETE_BRANCH_POPUP_ID: u16 = 1;
 const FORGET_BRANCH_POPUP_ID: u16 = 2;
-const NEW_POPUP_ID: u16 = 3;
 const EDIT_POPUP_ID: u16 = 4;
 
 /// Bookmarks tab. Shows bookmarks in main panel and selected bookmark current change in details panel.
@@ -66,7 +65,6 @@ pub struct BookmarksTab<'a> {
     forget: Option<ForgetBookmark>,
 
     describe_textarea: Option<TextArea<'a>>,
-    describe_after_new: bool,
     describe_after_new_change: Option<ChangeId>,
 
     edit_ignore_immutable: bool,
@@ -156,7 +154,6 @@ impl BookmarksTab<'_> {
             delete: None,
             forget: None,
 
-            describe_after_new: false,
             describe_textarea: None,
             describe_after_new_change: None,
 
@@ -274,21 +271,6 @@ impl Component for BookmarksTab<'_> {
                                     },
                                 )))));
                             }
-                        }
-                    }
-                }
-                NEW_POPUP_ID => {
-                    if let Some(BookmarkLine::Parsed { bookmark, .. }) = self.bookmark.as_ref() {
-                        commander.run_new(&bookmark.to_string())?;
-                        let head = commander.get_current_head()?;
-                        if self.describe_after_new {
-                            self.describe_after_new_change = Some(head.change_id);
-                            self.describe_after_new = false;
-                            let textarea = TextArea::default();
-                            self.describe_textarea = Some(textarea);
-                            return Ok(None);
-                        } else {
-                            return Ok(Some(ComponentAction::ViewLog(head)));
                         }
                     }
                 }
@@ -887,21 +869,18 @@ impl Component for BookmarksTab<'_> {
                     if let Some(BookmarkLine::Parsed { bookmark, .. }) = self.bookmark.as_ref()
                         && bookmark.present
                     {
-                        self.popup = ConfirmDialogState::new(
-                            NEW_POPUP_ID,
-                            Span::styled(" New ", Style::new().bold().cyan()),
-                            Text::from(vec![
-                                Line::from("Are you sure you want to create a new change?"),
-                                Line::from(format!("Bookmark: {bookmark}")),
-                            ]),
-                        );
-                        self.popup
-                            .with_yes_button(ButtonLabel::YES.clone())
-                            .with_no_button(ButtonLabel::NO.clone())
-                            .with_listener(Some(self.popup_tx.clone()))
-                            .open();
-
-                        self.describe_after_new = key.code == KeyCode::Char('N');
+                        commander.run_new(&bookmark.to_string())?;
+                        let head = commander.get_current_head()?;
+                        if key.code == KeyCode::Char('N') {
+                            self.describe_after_new_change = Some(head.change_id);
+                            let textarea = TextArea::default();
+                            self.describe_textarea = Some(textarea);
+                            return Ok(ComponentInputResult::Handled);
+                        } else {
+                            return Ok(ComponentInputResult::HandledAction(
+                                ComponentAction::ViewLog(head),
+                            ));
+                        }
                     }
                 }
                 KeyCode::Char('e') | KeyCode::Char('E') => {

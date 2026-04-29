@@ -30,7 +30,6 @@ use crate::{
     },
 };
 
-const NEW_POPUP_ID: u16 = 1;
 const ABANDON_POPUP_ID: u16 = 3;
 const SQUASH_POPUP_ID: u16 = 4;
 
@@ -74,7 +73,6 @@ pub struct LogTab<'a> {
     pending_push: Option<(ChangeId, bool, bool)>,
 
     describe_textarea: Option<TextArea<'a>>,
-    describe_after_new: bool,
 
     rebase_popup: Option<RebasePopup>,
 
@@ -132,7 +130,6 @@ impl<'a> LogTab<'a> {
             pending_push: None,
 
             describe_textarea: None,
-            describe_after_new: false,
 
             rebase_popup: None,
 
@@ -208,21 +205,15 @@ impl<'a> LogTab<'a> {
             }
 
             LogTabEvent::CreateNew { describe } => {
-                self.popup = ConfirmDialogState::new(
-                    NEW_POPUP_ID,
-                    Span::styled(" New ", Style::new().bold().cyan()),
-                    Text::from(vec![
-                        Line::from("Are you sure you want to create a new change?"),
-                        Line::from(format!("New parent: {}", self.head.change_id.as_str())),
-                    ])
-                    .fg(Color::default()),
-                );
-                self.popup
-                    .with_yes_button(ButtonLabel::YES.clone())
-                    .with_no_button(ButtonLabel::NO.clone())
-                    .with_listener(Some(self.popup_tx.clone()))
-                    .open();
-                self.describe_after_new = describe;
+                commander.run_new(self.head.commit_id.as_str())?;
+                self.set_head(commander, commander.get_current_head()?);
+                if describe {
+                    let textarea = TextArea::default();
+                    self.describe_textarea = Some(textarea);
+                }
+                return Ok(ComponentInputResult::HandledAction(
+                    ComponentAction::ChangeHead(self.head.clone()),
+                ));
             }
             LogTabEvent::Rebase => {
                 let source_change = commander.get_current_head()?;
@@ -560,16 +551,6 @@ impl Component for LogTab<'_> {
             && res.1.unwrap_or(false)
         {
             match res.0 {
-                NEW_POPUP_ID => {
-                    commander.run_new(self.head.commit_id.as_str())?;
-                    self.set_head(commander, commander.get_current_head()?);
-                    if self.describe_after_new {
-                        self.describe_after_new = false;
-                        let textarea = TextArea::default();
-                        self.describe_textarea = Some(textarea);
-                    }
-                    return Ok(Some(ComponentAction::ChangeHead(self.head.clone())));
-                }
                 ABANDON_POPUP_ID => {
                     if self.head == commander.get_current_head()? {
                         commander.run_abandon(&self.head.commit_id)?;
