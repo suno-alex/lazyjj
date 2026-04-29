@@ -248,27 +248,20 @@ impl<'a> LogPanel<'a> {
 
                 let line_head = log_output.graph_heads.get(i).unwrap_or(&None);
 
-                // Append a "(V)" marker on the first line of each change
+                // Append a "PR #N" marker on the first line of each change
                 // (each change spans two lines in builtin_log_compact)
                 let is_first_line_of_change = line_head.is_some()
                     && (i == 0 || log_output.graph_heads.get(i - 1).unwrap_or(&None) != line_head);
                 if is_first_line_of_change
                     && let Some(head) = line_head
+                    && let Some(pr) = self.pr_by_change.get(&head.change_id)
                 {
-                    if head.signed {
-                        line.spans.push(Span::styled(
-                            " (V)",
-                            Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
-                        ));
-                    }
-                    if let Some(pr) = self.pr_by_change.get(&head.change_id) {
-                        line.spans.push(Span::styled(
-                            format!(" (PR #{pr})"),
-                            Style::default()
-                                .fg(Color::Blue)
-                                .add_modifier(Modifier::BOLD),
-                        ));
-                    }
+                    line.spans.push(Span::styled(
+                        format!(" PR #{pr}"),
+                        Style::default()
+                            .fg(Color::Blue)
+                            .add_modifier(Modifier::BOLD),
+                    ));
                 }
 
                 // Highlight lines that correspond to self.head

@@ -652,20 +652,6 @@ impl Component for LogTab<'_> {
                 Err(err) => err.into_text("Error getting head details")?.lines,
             };
 
-            // Append a green "(Verified)" marker on the Commit ID line for
-            // signed commits. The line is rendered by `jj show` as
-            // "Commit ID: <hash>".
-            if self.head.signed
-                && let Some(commit_id_line) = head_content
-                    .iter_mut()
-                    .find(|line| line.spans.iter().any(|s| s.content.contains("Commit ID:")))
-            {
-                commit_id_line.spans.push(Span::styled(
-                    " (Verified)",
-                    Style::default().fg(Color::Blue),
-                ));
-            }
-
             if let Some(pr) = self.log_panel.selected_pr_number()
                 && let Some(committer_idx) = head_content.iter().position(|line| {
                     line.spans.iter().any(|s| s.content.contains("Committer:"))
