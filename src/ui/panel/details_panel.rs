@@ -203,7 +203,9 @@ impl DetailsPanel {
             KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.handle_event(DetailsPanelEvent::ScrollUpPage)
             }
-            KeyCode::Char('W') => self.handle_event(DetailsPanelEvent::ToggleWrap),
+            KeyCode::Char('w') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.handle_event(DetailsPanelEvent::ToggleWrap)
+            }
             _ => return false,
         };
 

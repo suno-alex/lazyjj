@@ -12,7 +12,9 @@ use crate::{
     },
     env::{Config, DiffFormat},
     ui::{
-        Component, ComponentAction, help_popup::HelpPopup, message_popup::MessagePopup,
+        Component, ComponentAction,
+        help_popup::HelpPopup,
+        message_popup::MessagePopup,
         panel::DetailsPanel,
         utils::{tabs_to_spaces, tint_git_diff},
     },
@@ -371,7 +373,7 @@ impl Component for FilesTab {
                 KeyCode::Char('K') => {
                     self.scroll_files((self.files_height as isize / 2).saturating_neg());
                 }
-                KeyCode::Char('w') => {
+                KeyCode::Char('h') => {
                     self.diff_format = self.diff_format.get_next(self.config.diff_tool());
                     self.refresh_diff(commander)?;
                 }
@@ -429,8 +431,8 @@ impl Component for FilesTab {
                                     "Ctrl+f/Ctrl+b".to_owned(),
                                     "scroll down/up by page".to_owned(),
                                 ),
-                                ("w".to_owned(), "toggle diff format".to_owned()),
-                                ("W".to_owned(), "toggle wrapping".to_owned()),
+                                ("h".to_owned(), "toggle diff format".to_owned()),
+                                ("Ctrl+w".to_owned(), "toggle wrapping".to_owned()),
                             ],
                         )))),
                     ));

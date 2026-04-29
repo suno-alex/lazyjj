@@ -783,7 +783,7 @@ impl Component for BookmarksTab<'_> {
                         (self.bookmarks_height as isize / 2).saturating_neg(),
                     );
                 }
-                KeyCode::Char('w') => {
+                KeyCode::Char('h') => {
                     self.diff_format = self.diff_format.get_next(self.config.diff_tool());
                     self.refresh_bookmark(commander);
                 }
@@ -977,8 +977,8 @@ impl Component for BookmarksTab<'_> {
                                     "Ctrl+f/Ctrl+b".to_owned(),
                                     "scroll down/up by page".to_owned(),
                                 ),
-                                ("w".to_owned(), "toggle diff format".to_owned()),
-                                ("W".to_owned(), "toggle wrapping".to_owned()),
+                                ("h".to_owned(), "toggle diff format".to_owned()),
+                                ("Ctrl+w".to_owned(), "toggle wrapping".to_owned()),
                             ],
                         )))),
                     ));

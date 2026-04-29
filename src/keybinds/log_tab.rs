@@ -48,6 +48,10 @@ pub enum LogTabEvent {
     OpenPr,
 
     CopyChangeId,
+    /// Copy the absolute filesystem path of the workspace whose `@`
+    /// points to the selected change. Falls back to the current
+    /// workspace root when no workspace owns the change.
+    CopyWorkspacePath,
 
     Push {
         all_bookmarks: bool,
@@ -58,6 +62,14 @@ pub enum LogTabEvent {
     },
     FetchRebase,
     FetchRebaseSelected,
+
+    /// Open the Workspaces tab's "Add workspace" popup, pre-seeded with
+    /// the selected change as the base revision.
+    CreateWorkspace,
+    /// Spawn a new terminal window at the workspace owning the selected
+    /// change (or the current workspace as a fallback) and run `claude`
+    /// there.
+    ClaudeInWorkspace,
 
     OpenHelp,
 
@@ -80,7 +92,7 @@ impl Default for LogTabKeybinds {
             LogTabEvent::ScrollUpHalf => "shift+k",
             LogTabEvent::FocusCurrent => "@",
             // todo: move to DetailsKeybindings
-            LogTabEvent::ToggleDiffFormat => "w",
+            LogTabEvent::ToggleDiffFormat => "h",
             LogTabEvent::Refresh => "shift+r",
             LogTabEvent::Refresh => "f5",
             LogTabEvent::Duplicate => "shift+d",
@@ -100,6 +112,7 @@ impl Default for LogTabKeybinds {
             LogTabEvent::OpenFiles => "enter",
             LogTabEvent::OpenPr => "g",
             LogTabEvent::CopyChangeId => "y",
+            LogTabEvent::CopyWorkspacePath => "shift+y",
             event_push(false, true) => "p",
             event_push(false, false) => "ctrl+p",
             event_push(true, true) => "shift+p",
@@ -107,6 +120,8 @@ impl Default for LogTabKeybinds {
             LogTabEvent::Fetch { all_remotes: false } => "f",
             LogTabEvent::Fetch { all_remotes: true } => "shift+f",
             LogTabEvent::FetchRebase => "`",
+            LogTabEvent::CreateWorkspace => "w",
+            LogTabEvent::ClaudeInWorkspace => "c",
             LogTabEvent::OpenHelp => "?",
         );
 
@@ -150,6 +165,7 @@ impl LogTabKeybinds {
             LogTabEvent::OpenFiles => config.open_files,
             LogTabEvent::OpenPr => config.open_pr,
             LogTabEvent::CopyChangeId => config.copy_change_id,
+            LogTabEvent::CopyWorkspacePath => config.copy_workspace_path,
             LogTabEvent::Rebase => config.rebase,
             event_push(false, false) => config.push,
             event_push(false, true) => config.push_new,
@@ -159,6 +175,8 @@ impl LogTabKeybinds {
             LogTabEvent::Fetch { all_remotes: true } => config.fetch_all,
             LogTabEvent::FetchRebase => config.fetch_rebase,
             LogTabEvent::FetchRebaseSelected => config.fetch_rebase_selected,
+            LogTabEvent::CreateWorkspace => config.create_workspace,
+            LogTabEvent::ClaudeInWorkspace => config.claude_in_workspace,
             LogTabEvent::OpenHelp => config.open_help,
         );
     }
@@ -187,6 +205,7 @@ impl LogTabKeybinds {
             LogTabEvent::SetBookmark => "set bookmark",
             LogTabEvent::OpenPr => "open GitHub PR for bookmark in browser",
             LogTabEvent::CopyChangeId => "copy change ID to clipboard",
+            LogTabEvent::CopyWorkspacePath => "copy workspace absolute path to clipboard",
             LogTabEvent::Fetch { all_remotes: false } => "git fetch",
             LogTabEvent::Fetch { all_remotes: true } => "git fetch all remotes",
             LogTabEvent::FetchRebase => "git fetch and rebase my bookmarks onto main",
@@ -195,6 +214,8 @@ impl LogTabKeybinds {
             event_push(false, false) => "git push (fail if no bookmark)",
             event_push(true, false) => "git push all bookmarks, except new",
             event_push(true, true) => "git push all bookmarks",
+            LogTabEvent::CreateWorkspace => "create workspace at selected change",
+            LogTabEvent::ClaudeInWorkspace => "open claude in change's workspace dir",
         )
     }
 }

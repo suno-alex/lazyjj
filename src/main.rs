@@ -143,7 +143,47 @@ fn main() -> Result<()> {
     restore_terminal()?;
     res?;
 
+    // If the user picked a different workspace, re-launch lazyjj attached
+    // to it. This replaces the current process so the user lands directly
+    // back in the TUI without a stray shell prompt in between.
+    if let Some(path) = app.pending_switch.take() {
+        switch_to_workspace(&path)?;
+    }
+
     Ok(())
+}
+
+fn switch_to_workspace(path: &str) -> Result<()> {
+    use std::process::Command;
+
+    let exe = std::env::current_exe().context("Failed to determine current executable path")?;
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    // Strip any existing --path / -p so we don't end up with two.
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--path" || args[i] == "-p" {
+            args.drain(i..(i + 2).min(args.len()));
+        } else if args[i].starts_with("--path=") {
+            args.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+    args.push("--path".to_string());
+    args.push(path.to_string());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // exec replaces the current process; on success this never returns.
+        let err = Command::new(&exe).args(&args).exec();
+        bail!("Failed to re-exec lazyjj at {}: {}", path, err);
+    }
+    #[cfg(not(unix))]
+    {
+        let status = Command::new(&exe).args(&args).status()?;
+        std::process::exit(status.code().unwrap_or(0));
+    }
 }
 
 fn run_app<B: Backend>(
@@ -217,7 +257,7 @@ fn run_app<B: Backend>(
                         Ok(false)
                     })?;
 
-                    if should_stop {
+                    if should_stop || app.pending_switch.is_some() {
                         return Ok(());
                     }
                 }

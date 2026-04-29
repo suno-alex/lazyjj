@@ -165,7 +165,10 @@ pub fn tint_git_diff(mut text: Text<'_>) -> Text<'_> {
                 Style::default().fg(Color::Green).bold(),
             ),
             Span::raw(" "),
-            Span::styled(format!("-{removed}"), Style::default().fg(Color::Red).bold()),
+            Span::styled(
+                format!("-{removed}"),
+                Style::default().fg(Color::Red).bold(),
+            ),
         ]);
         text.lines.insert(0, summary);
     }

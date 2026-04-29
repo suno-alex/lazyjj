@@ -293,7 +293,7 @@ impl Component for CommandLogTab {
                                     "Ctrl+f/Ctrl+b".to_owned(),
                                     "scroll down/up by page".to_owned(),
                                 ),
-                                ("W".to_owned(), "toggle wrapping".to_owned()),
+                                ("Ctrl+w".to_owned(), "toggle wrapping".to_owned()),
                             ],
                         )))),
                     ));

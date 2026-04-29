@@ -46,6 +46,7 @@ pub struct LogTabKeybindsConfig {
     pub open_pr: Option<Keybind>,
     pub rebase: Option<Keybind>,
     pub copy_change_id: Option<Keybind>,
+    pub copy_workspace_path: Option<Keybind>,
 
     pub push: Option<Keybind>,
     pub push_new: Option<Keybind>,
@@ -55,6 +56,9 @@ pub struct LogTabKeybindsConfig {
     pub fetch_all: Option<Keybind>,
     pub fetch_rebase: Option<Keybind>,
     pub fetch_rebase_selected: Option<Keybind>,
+
+    pub create_workspace: Option<Keybind>,
+    pub claude_in_workspace: Option<Keybind>,
 
     pub open_help: Option<Keybind>,
 }

@@ -5,6 +5,7 @@ use crate::{
     ui::{
         Component, ComponentAction, bookmarks_tab::BookmarksTab, command_log_tab::CommandLogTab,
         command_popup::CommandPopup, files_tab::FilesTab, log_tab::LogTab,
+        workspaces_tab::WorkspacesTab,
     },
 };
 use anyhow::{Result, anyhow};
@@ -17,6 +18,7 @@ pub enum Tab {
     Log,
     Files,
     Bookmarks,
+    Workspaces,
     CommandLog,
 }
 
@@ -26,13 +28,20 @@ impl fmt::Display for Tab {
             Tab::Log => write!(f, "Log"),
             Tab::Files => write!(f, "Files"),
             Tab::Bookmarks => write!(f, "Bookmarks"),
+            Tab::Workspaces => write!(f, "Workspaces"),
             Tab::CommandLog => write!(f, "Command Log"),
         }
     }
 }
 
 impl Tab {
-    pub const VALUES: [Self; 4] = [Tab::Log, Tab::Files, Tab::Bookmarks, Tab::CommandLog];
+    pub const VALUES: [Self; 5] = [
+        Tab::Log,
+        Tab::Files,
+        Tab::Bookmarks,
+        Tab::Workspaces,
+        Tab::CommandLog,
+    ];
 }
 
 pub struct App<'a> {
@@ -41,8 +50,12 @@ pub struct App<'a> {
     pub log: Option<LogTab<'a>>,
     pub files: Option<FilesTab>,
     pub bookmarks: Option<BookmarksTab<'a>>,
+    pub workspaces: Option<WorkspacesTab<'a>>,
     pub command_log: Option<CommandLogTab>,
     pub popup: Option<Box<dyn Component>>,
+    /// Set when a workspace switch is requested. The main loop checks
+    /// this after each iteration to re-exec lazyjj at the new path.
+    pub pending_switch: Option<String>,
 }
 
 impl<'a> App<'a> {
@@ -53,8 +66,10 @@ impl<'a> App<'a> {
             log: None,
             files: None,
             bookmarks: None,
+            workspaces: None,
             command_log: None,
             popup: None,
+            pending_switch: None,
         })
     }
 
@@ -145,6 +160,21 @@ impl<'a> App<'a> {
             .ok_or_else(|| anyhow!("Failed to get mutable reference to CommandLogTab"))
     }
 
+    pub fn get_workspaces_tab(
+        &mut self,
+        commander: &mut Commander,
+    ) -> Result<&mut WorkspacesTab<'a>> {
+        if self.workspaces.is_none() {
+            let span = info_span!("Initializing workspaces tab");
+            let workspaces_tab = span.in_scope(|| WorkspacesTab::new(commander))?;
+            self.workspaces = Some(workspaces_tab);
+        }
+
+        self.workspaces
+            .as_mut()
+            .ok_or_else(|| anyhow!("Failed to get mutable reference to WorkspacesTab"))
+    }
+
     pub fn get_or_init_tab(
         &mut self,
         commander: &mut Commander,
@@ -154,6 +184,7 @@ impl<'a> App<'a> {
             Tab::Log => self.get_log_tab(commander)?,
             Tab::Files => self.get_files_tab(commander)?,
             Tab::Bookmarks => self.get_bookmarks_tab(commander)?,
+            Tab::Workspaces => self.get_workspaces_tab(commander)?,
             Tab::CommandLog => self.get_command_log_tab(commander)?,
         })
     }
@@ -172,6 +203,10 @@ impl<'a> App<'a> {
                 .bookmarks
                 .as_mut()
                 .map(|bookmarks_tab| bookmarks_tab as &mut dyn Component),
+            Tab::Workspaces => self
+                .workspaces
+                .as_mut()
+                .map(|workspaces_tab| workspaces_tab as &mut dyn Component),
             Tab::CommandLog => self
                 .command_log
                 .as_mut()
@@ -216,6 +251,13 @@ impl<'a> App<'a> {
                     }
                     _ => {}
                 };
+            }
+            ComponentAction::SwitchWorkspace(path) => {
+                self.pending_switch = Some(path);
+            }
+            ComponentAction::OpenWorkspaceAdd(revision) => {
+                self.set_tab(commander, Tab::Workspaces)?;
+                self.get_workspaces_tab(commander)?.open_add(revision);
             }
         }
 

@@ -26,7 +26,7 @@ scroll-down-half = "shift+j"
 scroll-up-half = "shift+k"
 
 focus-current = "@"
-toggle-diff-format = "w"
+toggle-diff-format = "h"
 
 refresh = ["shift+r", "f5"]
 create-new = "n"
@@ -50,6 +50,11 @@ push-all-new = "shift+p"
 fetch = "f"
 fetch-all = "shift+f"
 fetch-rebase-selected = "r"
+
+create-workspace = "w"
+
+copy-change-id = "y"
+copy-workspace-path = "shift+y"
 
 open-help = "?"
 ```

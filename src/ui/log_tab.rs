@@ -416,6 +416,33 @@ impl<'a> LogTab<'a> {
                     tracing::warn!("Failed to copy change ID to clipboard: {err}");
                 }
             }
+            LogTabEvent::CopyWorkspacePath => {
+                // Prefer the workspace whose `@` points to the selected
+                // change; if none, fall back to the workspace lazyjj is
+                // attached to so the keybind is always useful.
+                let path = match commander.get_workspace_root_for_commit(&self.head.commit_id) {
+                    Ok(Some(path)) => Some(path),
+                    _ => commander.get_workspace_root(None).ok(),
+                };
+                match path {
+                    Some(path) => {
+                        let path_str = path.to_string_lossy();
+                        if let Err(err) = clipboard::copy_to_clipboard(&path_str) {
+                            tracing::warn!("Failed to copy workspace path to clipboard: {err}");
+                        }
+                    }
+                    None => {
+                        return Ok(ComponentInputResult::HandledAction(
+                            ComponentAction::SetPopup(Some(Box::new(MessagePopup {
+                                title: "Copy workspace path".into(),
+                                messages: "Could not resolve a workspace path for this change."
+                                    .into(),
+                                text_align: None,
+                            }))),
+                        ));
+                    }
+                }
+            }
             LogTabEvent::Push {
                 all_bookmarks,
                 allow_new,
@@ -462,22 +489,15 @@ impl<'a> LogTab<'a> {
             LogTabEvent::FetchRebase => {
                 let commander_clone = Commander::new(&commander.env);
 
-                let loader =
-                    LoaderPopup::new("Fetching and rebasing".to_string(), move || {
-                        let fetch_output = commander_clone.git_fetch(false)?;
-                        commander_clone.execute_jj_command(
-                            vec![
-                                "rebase",
-                                "-b",
-                                "(bookmarks() & mine()) | @",
-                                "-d",
-                                "main",
-                            ],
-                            true,
-                            true,
-                        )?;
-                        Ok(fetch_output)
-                    });
+                let loader = LoaderPopup::new("Fetching and rebasing".to_string(), move || {
+                    let fetch_output = commander_clone.git_fetch(false)?;
+                    commander_clone.execute_jj_command(
+                        vec!["rebase", "-b", "(bookmarks() & mine()) | @", "-d", "main"],
+                        true,
+                        true,
+                    )?;
+                    Ok(fetch_output)
+                });
 
                 return Ok(ComponentInputResult::HandledAction(
                     ComponentAction::SetPopup(Some(Box::new(loader))),
@@ -504,6 +524,13 @@ impl<'a> LogTab<'a> {
                     ComponentAction::SetPopup(Some(Box::new(loader))),
                 ));
             }
+            LogTabEvent::CreateWorkspace => {
+                return Ok(ComponentInputResult::HandledAction(
+                    ComponentAction::OpenWorkspaceAdd(Some(
+                        self.head.change_id.as_str().to_owned(),
+                    )),
+                ));
+            }
             LogTabEvent::OpenHelp => {
                 return Ok(ComponentInputResult::HandledAction(
                     ComponentAction::SetPopup(Some(Box::new(HelpPopup::new(
@@ -518,11 +545,16 @@ impl<'a> LogTab<'a> {
                                 "Ctrl+f/Ctrl+b".to_owned(),
                                 "scroll down/up by page".to_owned(),
                             ),
-                            ("w".to_owned(), "toggle diff format".to_owned()),
-                            ("W".to_owned(), "toggle wrapping".to_owned()),
+                            ("h".to_owned(), "toggle diff format".to_owned()),
+                            ("Ctrl+w".to_owned(), "toggle wrapping".to_owned()),
                         ],
                     )))),
                 ));
+            }
+            LogTabEvent::ClaudeInWorkspace => {
+                // Not yet implemented; the binding exists but the
+                // terminal-spawn flow hasn't landed. Treat as a no-op
+                // so the keystroke isn't silently classified as Unbound.
             }
             LogTabEvent::Save
             | LogTabEvent::Cancel
@@ -667,9 +699,9 @@ impl Component for LogTab<'_> {
             }
 
             if let Some(pr) = self.log_panel.selected_pr_number()
-                && let Some(committer_idx) = head_content.iter().position(|line| {
-                    line.spans.iter().any(|s| s.content.contains("Committer:"))
-                })
+                && let Some(committer_idx) = head_content
+                    .iter()
+                    .position(|line| line.spans.iter().any(|s| s.content.contains("Committer:")))
             {
                 let pr_line = Line::from(vec![
                     Span::raw("PR       : "),

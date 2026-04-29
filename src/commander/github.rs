@@ -40,7 +40,10 @@ pub struct GitHubRepo {
 
 impl GitHubRepo {
     pub fn pr_url(&self, number: u32) -> String {
-        format!("https://github.com/{}/{}/pull/{number}", self.owner, self.name)
+        format!(
+            "https://github.com/{}/{}/pull/{number}",
+            self.owner, self.name
+        )
     }
 }
 
@@ -218,6 +221,9 @@ mod tests {
             owner: "suno-ai".into(),
             name: "app-mobile".into(),
         };
-        assert_eq!(repo.pr_url(42), "https://github.com/suno-ai/app-mobile/pull/42");
+        assert_eq!(
+            repo.pr_url(42),
+            "https://github.com/suno-ai/app-mobile/pull/42"
+        );
     }
 }

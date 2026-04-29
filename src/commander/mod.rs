@@ -26,6 +26,7 @@ pub mod github;
 pub mod ids;
 pub mod jj;
 pub mod log;
+pub mod workspaces;
 
 use crate::env::DiffFormat;
 use crate::env::Env;
@@ -62,11 +63,7 @@ impl DiffFormat {
                 "colors.\"diff token\".underline=false",
                 "--color-words",
             ],
-            DiffFormat::Git => vec![
-                "--config",
-                "colors.\"diff token\".underline=false",
-                "--git",
-            ],
+            DiffFormat::Git => vec!["--config", "colors.\"diff token\".underline=false", "--git"],
             DiffFormat::Summary => vec!["--summary"],
             DiffFormat::Stat => vec!["--stat"],
             DiffFormat::DiffTool(Some(tool)) => vec!["--tool", tool],

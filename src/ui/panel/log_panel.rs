@@ -252,13 +252,13 @@ impl<'a> LogPanel<'a> {
                 // (each change spans two lines in builtin_log_compact)
                 let is_first_line_of_change = line_head.is_some()
                     && (i == 0 || log_output.graph_heads.get(i - 1).unwrap_or(&None) != line_head);
-                if is_first_line_of_change
-                    && let Some(head) = line_head
-                {
+                if is_first_line_of_change && let Some(head) = line_head {
                     if head.signed {
                         line.spans.push(Span::styled(
                             " (V)",
-                            Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
+                            Style::default()
+                                .fg(Color::Blue)
+                                .add_modifier(Modifier::BOLD),
                         ));
                     }
                     if let Some(pr) = self.pr_by_change.get(&head.change_id) {
@@ -470,11 +470,9 @@ impl Component for LogPanel<'_> {
                         &mouse_event,
                     ) {
                         let now = Instant::now();
-                        let is_double_click = self
-                            .last_click
-                            .is_some_and(|(t, prev_inx)| {
-                                prev_inx == inx && now.duration_since(t) <= DOUBLE_CLICK_THRESHOLD
-                            });
+                        let is_double_click = self.last_click.is_some_and(|(t, prev_inx)| {
+                            prev_inx == inx && now.duration_since(t) <= DOUBLE_CLICK_THRESHOLD
+                        });
 
                         if let Some(head) = self.head_at_log_line(inx) {
                             self.set_head(head);
