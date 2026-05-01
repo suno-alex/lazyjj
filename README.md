@@ -57,6 +57,7 @@ You can optionally configure the following options through your jj config:
   - If `lazyjj.bookmark-prefix` is not set but `git.push-bookmark-prefix` is, the latter will be used
 - `lazyjj.layout`: Changes the layout of the main and details panel. Can be `horizontal` (default) or `vertical`
 - `lazyjj.layout-percent`: Changes the layout split of the main page. Should be number between 0 and 100. Defaults to `50`
+- `lazyjj.log-limit`: Cap the number of changes shown in the log tab. Unset by default (no cap, jj's default revset still applies). Example: `50`
 
 Example: `jj config set --user lazyjj.diff-format "color-words"` (for storing in [user config file](https://martinvonz.github.io/jj/latest/config/#user-config-file), repo config is also supported)
 

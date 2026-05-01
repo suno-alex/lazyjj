@@ -24,6 +24,8 @@ pub struct Config {
     lazyjj_layout: Option<JJLayout>,
     #[serde(rename = "lazyjj.layout-percent")]
     lazyjj_layout_percent: Option<u16>,
+    #[serde(rename = "lazyjj.log-limit")]
+    lazyjj_log_limit: Option<u32>,
     #[serde(rename = "lazyjj.keybinds")]
     lazyjj_keybinds: Option<KeybindsConfig>,
     #[serde(rename = "ui.diff.format")]
@@ -51,6 +53,7 @@ pub struct JjConfigLazyjj {
     bookmark_prefix: Option<String>,
     layout: Option<JJLayout>,
     layout_percent: Option<u16>,
+    log_limit: Option<u32>,
     keybinds: Option<KeybindsConfig>,
 }
 
@@ -116,6 +119,12 @@ impl Config {
 
     pub fn layout_percent(&self) -> u16 {
         self.lazyjj_layout_percent.unwrap_or(50)
+    }
+
+    /// Maximum number of changes to show in the log. `None` means no cap
+    /// (jj's default revset still applies).
+    pub fn log_limit(&self) -> Option<u32> {
+        self.lazyjj_log_limit
     }
 
     pub fn keybinds(&self) -> Option<&KeybindsConfig> {
@@ -195,6 +204,10 @@ impl Env {
                             .lazyjj
                             .as_ref()
                             .and_then(|lazyjj| lazyjj.layout_percent),
+                        lazyjj_log_limit: config
+                            .lazyjj
+                            .as_ref()
+                            .and_then(|lazyjj| lazyjj.log_limit),
                         lazyjj_keybinds: config
                             .lazyjj
                             .as_ref()

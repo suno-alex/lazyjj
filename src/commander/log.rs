@@ -141,6 +141,13 @@ impl Commander {
             args.push(revset);
         }
 
+        // Optional row cap from `lazyjj.log-limit`. None = no limit.
+        let limit_str = self.env.config.log_limit().map(|n| n.to_string());
+        if let Some(limit) = limit_str.as_deref() {
+            args.push("--limit");
+            args.push(limit);
+        }
+
         // Force builtin_log_compact which uses 2 lines per change
         let graph = self.execute_jj_command(
             [
@@ -192,21 +199,21 @@ impl Commander {
         // Query `mine()` (jj's built-in alias for `author(<user.email>)`),
         // then keep only IDs visible in the current log. Best-effort: if the
         // user has no email configured or `mine()` fails, no rows are flagged.
+        // Uses the same row cap as the main log to bound work in big repos.
+        let mut mine_args = vec![
+            "log",
+            "--no-graph",
+            "-r",
+            "mine()",
+            "--template",
+            r#"change_id ++ "\n""#,
+        ];
+        if let Some(limit) = limit_str.as_deref() {
+            mine_args.push("--limit");
+            mine_args.push(limit);
+        }
         let mine: HashSet<ChangeId> = self
-            .execute_jj_command(
-                vec![
-                    "log",
-                    "--no-graph",
-                    "-r",
-                    "mine()",
-                    "--template",
-                    r#"change_id ++ "\n""#,
-                    "--limit",
-                    "50",
-                ],
-                false,
-                true,
-            )
+            .execute_jj_command(mine_args, false, true)
             .map(|out| {
                 out.lines()
                     .map(str::trim)
