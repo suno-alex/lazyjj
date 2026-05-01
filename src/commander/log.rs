@@ -17,7 +17,7 @@ use crate::{
 use anyhow::{Context, Result, anyhow, bail};
 use itertools::Itertools;
 use regex::Regex;
-use std::{fmt::Display, sync::LazyLock};
+use std::{collections::HashSet, fmt::Display, sync::LazyLock};
 use thiserror::Error;
 use tracing::instrument;
 
@@ -59,6 +59,9 @@ pub struct LogOutput {
     // Maps graph line -> heads
     pub graph_heads: Vec<Option<Head>>,
     pub heads: Vec<Head>,
+    // Change IDs authored by the current user (jj's `mine()` revset),
+    // intersected with the visible log.
+    pub mine: HashSet<ChangeId>,
 }
 
 #[derive(Error, Debug)]
@@ -181,12 +184,44 @@ impl Commander {
             .map(|line| parse_head(line).ok())
             .collect();
 
-        let heads = graph_heads.clone().into_iter().flatten().unique().collect();
+        let heads: Vec<Head> = graph_heads.clone().into_iter().flatten().unique().collect();
+
+        let visible_change_ids: HashSet<ChangeId> =
+            heads.iter().map(|h| h.change_id.clone()).collect();
+
+        // Query `mine()` (jj's built-in alias for `author(<user.email>)`),
+        // then keep only IDs visible in the current log. Best-effort: if the
+        // user has no email configured or `mine()` fails, no rows are flagged.
+        let mine: HashSet<ChangeId> = self
+            .execute_jj_command(
+                vec![
+                    "log",
+                    "--no-graph",
+                    "-r",
+                    "mine()",
+                    "--template",
+                    r#"change_id ++ "\n""#,
+                    "--limit",
+                    "50",
+                ],
+                false,
+                true,
+            )
+            .map(|out| {
+                out.lines()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(|s| ChangeId(s.to_owned()))
+                    .filter(|id| visible_change_ids.contains(id))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         Ok(LogOutput {
             graph,
             graph_heads,
             heads,
+            mine,
         })
     }
 

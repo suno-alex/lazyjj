@@ -249,6 +249,16 @@ impl<'a> LogPanel<'a> {
                     ));
                 }
 
+                // Tint the row background for the user's own changes.
+                // Applied to both lines of each change. Selection bg below
+                // takes precedence by being applied last.
+                if let Some(head) = line_head
+                    && log_output.mine.contains(&head.change_id)
+                {
+                    set_bg(&mut line, Color::Rgb(40, 25, 50));
+                }
+
+
                 // Highlight lines that correspond to self.head
                 if let Some(line_change) = line_head
                     && line_change == &self.head
