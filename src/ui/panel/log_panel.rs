@@ -133,13 +133,14 @@ fn get_head_index(head: &Head, log_output: &Result<LogOutput, CommandError>) -> 
 /// Default revset when the user did not pass `-r`.
 /// Shows the latest trunk commit (the main used as base), the working-copy
 /// change `@` (including when it's empty), the user's active bookmarks and
-/// the chain to trunk plus any descendants branching off them, and the
-/// user's local heads (not yet pushed to a remote bookmark) so in-progress
-/// work without a bookmark on top stays visible.
+/// the chain to trunk plus any descendants branching off them, and any
+/// local head not yet pushed to a remote bookmark, so a coworker's change
+/// the user explicitly checked out stays visible after they move back to
+/// their own work.
 const DEFAULT_REVSET: &str = "present(@) | trunk() \
     | (trunk()..(bookmarks() & mine())) | ((bookmarks() & mine())::) \
-    | (trunk()..heads(mine() ~ ::remote_bookmarks())) \
-    | (heads(mine() ~ ::remote_bookmarks())::)";
+    | (trunk()..heads(visible_heads() ~ ::remote_bookmarks())) \
+    | (heads(visible_heads() ~ ::remote_bookmarks())::)";
 
 impl<'a> LogPanel<'a> {
     pub fn new(commander: &mut Commander) -> Result<Self> {
