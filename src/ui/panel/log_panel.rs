@@ -57,6 +57,10 @@ pub struct LogPanel<'a> {
     /// The revision set to show in the log
     pub log_revset: Option<String>,
 
+    /// When true, filter the log to changes authored by the current user.
+    /// Composes with `log_revset` if present (intersected via `mine() & (...)`).
+    pub mine_filter: bool,
+
     /// Currently selected change
     pub head: Head,
 
@@ -130,10 +134,25 @@ fn get_head_index(head: &Head, log_output: &Result<LogOutput, CommandError>) -> 
     }
 }
 
+/// Compose the effective revset to pass to `jj log`. When `mine_filter` is
+/// on, restrict to the user's active changes — `mine()` minus anything
+/// already merged into trunk — and intersect with the user's revset if one
+/// is set. The `~ ::trunk()` exclusion drops long-merged changes so the
+/// filter shows just the work-in-flight.
+fn effective_revset(log_revset: &Option<String>, mine_filter: bool) -> Option<String> {
+    let mine = "mine() ~ ::trunk()";
+    match (mine_filter, log_revset) {
+        (false, r) => r.clone(),
+        (true, None) => Some(mine.to_owned()),
+        (true, Some(r)) => Some(format!("({mine}) & ({r})")),
+    }
+}
+
 impl<'a> LogPanel<'a> {
     pub fn new(commander: &mut Commander) -> Result<Self> {
         let log_revset = commander.env.default_revset.clone();
-        let log_output = commander.get_log(&log_revset);
+        let mine_filter = false;
+        let log_output = commander.get_log(&effective_revset(&log_revset, mine_filter));
         let head = commander.get_current_head()?;
 
         let log_list_state = ListState::default().with_selected(get_head_index(&head, &log_output));
@@ -166,6 +185,7 @@ impl<'a> LogPanel<'a> {
             log_rect: Rect::ZERO,
 
             log_revset,
+            mine_filter,
 
             head,
 
@@ -196,7 +216,8 @@ impl<'a> LogPanel<'a> {
 
     /// Run jj log and store output for display
     pub fn refresh_log_output(&mut self, commander: &mut Commander) {
-        self.log_output = commander.get_log(&self.log_revset);
+        self.log_output =
+            commander.get_log(&effective_revset(&self.log_revset, self.mine_filter));
         self.log_output_text = match self.log_output.as_ref() {
             Ok(log_output) => log_output
                 .graph

@@ -29,6 +29,7 @@ focus-current = "@"
 toggle-diff-format = "w"
 
 refresh = ["shift+r", "f5"]
+toggle-mine-filter = "m"
 create-new = "n"
 create-new-describe = "shift+n"
 duplicate = "shift+d"

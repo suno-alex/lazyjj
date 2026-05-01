@@ -30,6 +30,7 @@ pub struct LogTabKeybindsConfig {
     pub toggle_diff_format: Option<Keybind>,
 
     pub refresh: Option<Keybind>,
+    pub toggle_mine_filter: Option<Keybind>,
     pub duplicate: Option<Keybind>,
     pub create_new: Option<Keybind>,
     pub create_new_describe: Option<Keybind>,

@@ -28,6 +28,7 @@ pub enum LogTabEvent {
     ToggleDiffFormat,
 
     Refresh,
+    ToggleMineFilter,
     CreateNew {
         describe: bool,
     },
@@ -83,6 +84,7 @@ impl Default for LogTabKeybinds {
             LogTabEvent::ToggleDiffFormat => "w",
             LogTabEvent::Refresh => "shift+r",
             LogTabEvent::Refresh => "f5",
+            LogTabEvent::ToggleMineFilter => "m",
             LogTabEvent::Duplicate => "shift+d",
             LogTabEvent::CreateNew { describe: true } => "n",
             LogTabEvent::CreateNew { describe: false } => "shift+n",
@@ -135,6 +137,7 @@ impl LogTabKeybinds {
             LogTabEvent::FocusCurrent => config.focus_current,
             LogTabEvent::ToggleDiffFormat => config.toggle_diff_format,
             LogTabEvent::Refresh => config.refresh,
+            LogTabEvent::ToggleMineFilter => config.toggle_mine_filter,
             LogTabEvent::Duplicate => config.duplicate,
             LogTabEvent::CreateNew { describe: false } => config.create_new,
             LogTabEvent::CreateNew { describe: true } => config.create_new_describe,
@@ -172,6 +175,7 @@ impl LogTabKeybinds {
             LogTabEvent::OpenFiles => "view files of change",
             LogTabEvent::FocusCurrent => "jump to current change (@)",
             LogTabEvent::EditRevset => "edit log revset",
+            LogTabEvent::ToggleMineFilter => "toggle filter to my active changes",
             LogTabEvent::Refresh => "refresh log",
             LogTabEvent::Describe => "describe change",
             LogTabEvent::EditChange { ignore_immutable: false } => "edit change",

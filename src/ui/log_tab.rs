@@ -379,6 +379,11 @@ impl<'a> LogTab<'a> {
                 self.log_revset_textarea = Some(textarea);
                 return Ok(ComponentInputResult::Handled);
             }
+            LogTabEvent::ToggleMineFilter => {
+                self.log_panel.mine_filter = !self.log_panel.mine_filter;
+                self.log_panel.refresh_log_output(commander);
+                return Ok(ComponentInputResult::Handled);
+            }
             LogTabEvent::SetBookmark => {
                 return Ok(ComponentInputResult::HandledAction(
                     ComponentAction::SetPopup(Some(Box::new(BookmarkSetPopup::new(
