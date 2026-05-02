@@ -134,17 +134,23 @@ fn get_head_index(head: &Head, log_output: &Result<LogOutput, CommandError>) -> 
     }
 }
 
+/// Revset used when the mine filter is on. Shows the latest trunk commit,
+/// the working-copy `@`, the user's bookmarks and the chain to trunk plus
+/// any descendants, and the user's local heads not yet pushed to a remote
+/// bookmark, so in-progress work without a bookmark on top stays visible.
+const MINE_REVSET: &str = "present(@) | trunk() \
+    | (trunk()..(bookmarks() & mine())) | ((bookmarks() & mine())::) \
+    | (trunk()..heads(mine() ~ ::remote_bookmarks())) \
+    | (heads(mine() ~ ::remote_bookmarks())::)";
+
 /// Compose the effective revset to pass to `jj log`. When `mine_filter` is
-/// on, restrict to the user's active changes — `mine()` minus anything
-/// already merged into trunk — and intersect with the user's revset if one
-/// is set. The `~ ::trunk()` exclusion drops long-merged changes so the
-/// filter shows just the work-in-flight.
+/// on, restrict to a mine-focused revset and intersect with the user's
+/// revset if one is set.
 fn effective_revset(log_revset: &Option<String>, mine_filter: bool) -> Option<String> {
-    let mine = "mine() ~ ::trunk()";
     match (mine_filter, log_revset) {
         (false, r) => r.clone(),
-        (true, None) => Some(mine.to_owned()),
-        (true, Some(r)) => Some(format!("({mine}) & ({r})")),
+        (true, None) => Some(MINE_REVSET.to_owned()),
+        (true, Some(r)) => Some(format!("({MINE_REVSET}) & ({r})")),
     }
 }
 

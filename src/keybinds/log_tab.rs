@@ -175,7 +175,7 @@ impl LogTabKeybinds {
             LogTabEvent::OpenFiles => "view files of change",
             LogTabEvent::FocusCurrent => "jump to current change (@)",
             LogTabEvent::EditRevset => "edit log revset",
-            LogTabEvent::ToggleMineFilter => "toggle filter to my active changes",
+            LogTabEvent::ToggleMineFilter => "toggle filter to my bookmarks and local heads",
             LogTabEvent::Refresh => "refresh log",
             LogTabEvent::Describe => "describe change",
             LogTabEvent::EditChange { ignore_immutable: false } => "edit change",
