@@ -81,7 +81,7 @@ impl Config {
         let default = if let Some(diff_tool) = self.diff_tool() {
             DiffFormat::DiffTool(diff_tool)
         } else {
-            DiffFormat::Git
+            DiffFormat::ColorWords
         };
         self.lazyjj_diff_format
             .clone()
@@ -240,8 +240,8 @@ impl Env {
 #[derive(Clone, Debug, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum DiffFormat {
-    ColorWords,
     #[default]
+    ColorWords,
     Git,
     DiffTool(Option<String>),
     // Unused
