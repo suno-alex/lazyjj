@@ -32,6 +32,7 @@ use crate::{
 
 const ABANDON_POPUP_ID: u16 = 3;
 const SQUASH_POPUP_ID: u16 = 4;
+const FORGET_WORKSPACE_POPUP_ID: u16 = 5;
 
 /// Log tab. Shows `jj log` in main panel and shows selected change details of in details panel.
 pub struct LogTab<'a> {
@@ -77,6 +78,11 @@ pub struct LogTab<'a> {
     rebase_popup: Option<RebasePopup>,
 
     squash_ignore_immutable: bool,
+
+    /// (workspace name, workspace root path) captured when the
+    /// forget-workspace popup is opened. Used by the popup handler in
+    /// `update()` to actually forget and delete after confirmation.
+    pending_forget_workspace: Option<(String, String)>,
 
     config: Config,
     keybinds: LogTabKeybinds,
@@ -134,6 +140,8 @@ impl<'a> LogTab<'a> {
             rebase_popup: None,
 
             squash_ignore_immutable: false,
+
+            pending_forget_workspace: None,
 
             config: commander.env.config.clone(),
             keybinds,
@@ -412,6 +420,71 @@ impl<'a> LogTab<'a> {
                     tracing::warn!("Failed to copy change ID to clipboard: {err}");
                 }
             }
+            LogTabEvent::ForgetWorkspace => {
+                let (name, root) = match commander.get_workspace_at_commit(&self.head.commit_id) {
+                    Ok(Some(v)) => v,
+                    Ok(None) => {
+                        return Ok(ComponentInputResult::HandledAction(
+                            ComponentAction::SetPopup(Some(Box::new(MessagePopup {
+                                title: "Forget workspace".into(),
+                                messages: "No workspace has its working copy at this change."
+                                    .into_text()?,
+                                text_align: None,
+                            }))),
+                        ));
+                    }
+                    Err(err) => {
+                        return Ok(ComponentInputResult::HandledAction(
+                            ComponentAction::SetPopup(Some(Box::new(MessagePopup {
+                                title: "Forget workspace".into(),
+                                messages: err.to_string().into_text()?,
+                                text_align: None,
+                            }))),
+                        ));
+                    }
+                };
+                if name == "default" {
+                    return Ok(ComponentInputResult::HandledAction(
+                        ComponentAction::SetPopup(Some(Box::new(MessagePopup {
+                            title: "Forget workspace".into(),
+                            messages: "Refusing to forget the default workspace.".into_text()?,
+                            text_align: None,
+                        }))),
+                    ));
+                }
+                // If the user is running lazyjj from this workspace, deleting
+                // its dir out from under us is a recipe for confusion. Bail
+                // and tell them to run from another workspace.
+                let is_current = commander
+                    .env
+                    .root_matches(&root)
+                    .unwrap_or(false);
+                if is_current {
+                    return Ok(ComponentInputResult::HandledAction(
+                        ComponentAction::SetPopup(Some(Box::new(MessagePopup {
+                            title: "Forget workspace".into(),
+                            messages: "Cannot forget the workspace lazyjj is running in. Run lazyjj from the default workspace and try again."
+                                .into_text()?,
+                            text_align: None,
+                        }))),
+                    ));
+                }
+                self.popup = ConfirmDialogState::new(
+                    FORGET_WORKSPACE_POPUP_ID,
+                    Span::styled(" Forget workspace ", Style::new().bold().cyan()),
+                    Text::from(vec![
+                        Line::from(format!("Forget workspace \"{name}\"?")),
+                        Line::from(format!("This will also delete: {root}")),
+                    ])
+                    .fg(Color::default()),
+                );
+                self.popup
+                    .with_yes_button(ButtonLabel::YES.clone())
+                    .with_no_button(ButtonLabel::NO.clone())
+                    .with_listener(Some(self.popup_tx.clone()))
+                    .open();
+                self.pending_forget_workspace = Some((name, root));
+            }
             LogTabEvent::Push {
                 all_bookmarks,
                 allow_new,
@@ -458,22 +531,15 @@ impl<'a> LogTab<'a> {
             LogTabEvent::FetchRebase => {
                 let commander_clone = Commander::new(&commander.env);
 
-                let loader =
-                    LoaderPopup::new("Fetching and rebasing".to_string(), move || {
-                        let fetch_output = commander_clone.git_fetch(false)?;
-                        commander_clone.execute_jj_command(
-                            vec![
-                                "rebase",
-                                "-b",
-                                "(bookmarks() & mine()) | @",
-                                "-d",
-                                "main",
-                            ],
-                            true,
-                            true,
-                        )?;
-                        Ok(fetch_output)
-                    });
+                let loader = LoaderPopup::new("Fetching and rebasing".to_string(), move || {
+                    let fetch_output = commander_clone.git_fetch(false)?;
+                    commander_clone.execute_jj_command(
+                        vec!["rebase", "-b", "(bookmarks() & mine()) | @", "-d", "main"],
+                        true,
+                        true,
+                    )?;
+                    Ok(fetch_output)
+                });
 
                 return Ok(ComponentInputResult::HandledAction(
                     ComponentAction::SetPopup(Some(Box::new(loader))),
@@ -573,6 +639,35 @@ impl Component for LogTab<'_> {
                     self.set_head(commander, commander.get_current_head()?);
                     return Ok(Some(ComponentAction::ChangeHead(self.head.clone())));
                 }
+                FORGET_WORKSPACE_POPUP_ID => {
+                    if let Some((name, root)) = self.pending_forget_workspace.take() {
+                        if let Err(err) = commander.forget_workspace(&name) {
+                            return Ok(Some(ComponentAction::SetPopup(Some(Box::new(
+                                MessagePopup {
+                                    title: "Forget workspace".into(),
+                                    messages: err.to_string().into_text()?,
+                                    text_align: None,
+                                },
+                            )))));
+                        }
+                        if let Err(err) = std::fs::remove_dir_all(&root) {
+                            self.log_panel.refresh_log_output(commander);
+                            self.refresh_head_output(commander);
+                            return Ok(Some(ComponentAction::SetPopup(Some(Box::new(
+                                MessagePopup {
+                                    title: "Forget workspace".into(),
+                                    messages: format!(
+                                        "Workspace forgotten, but failed to delete {root}: {err}",
+                                    )
+                                    .into_text()?,
+                                    text_align: None,
+                                },
+                            )))));
+                        }
+                        self.log_panel.refresh_log_output(commander);
+                        self.refresh_head_output(commander);
+                    }
+                }
                 _ => {}
             }
         }
@@ -639,9 +734,9 @@ impl Component for LogTab<'_> {
             };
 
             if let Some(pr) = self.log_panel.selected_pr_number()
-                && let Some(committer_idx) = head_content.iter().position(|line| {
-                    line.spans.iter().any(|s| s.content.contains("Committer:"))
-                })
+                && let Some(committer_idx) = head_content
+                    .iter()
+                    .position(|line| line.spans.iter().any(|s| s.content.contains("Committer:")))
             {
                 let pr_line = Line::from(vec![
                     Span::raw("PR       : "),
@@ -847,6 +942,14 @@ impl Component for LogTab<'_> {
                 return Ok(ComponentInputResult::Handled);
             }
 
+            // Ctrl+D would normally scroll the details panel by half a page;
+            // intercept the ForgetWorkspace shortcut first so the (rebindable)
+            // log-tab binding wins over the panel's hard-coded vim binding.
+            let log_tab_event = self.keybinds.match_event(key);
+            if matches!(log_tab_event, LogTabEvent::ForgetWorkspace) {
+                return self.handle_event(commander, log_tab_event);
+            }
+
             if self.head_panel.input(key) {
                 return Ok(ComponentInputResult::Handled);
             }
@@ -857,7 +960,6 @@ impl Component for LogTab<'_> {
                 return Ok(input_result);
             }
 
-            let log_tab_event = self.keybinds.match_event(key);
             return self.handle_event(commander, log_tab_event);
         }
 

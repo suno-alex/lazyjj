@@ -209,6 +209,51 @@ impl Commander {
         self.execute_jj_command(args, true, true)
     }
 
+    /// Find the workspace (if any) whose working-copy commit equals `commit_id`.
+    /// Returns `(name, root_path)`.
+    #[instrument(level = "trace", skip(self))]
+    pub fn get_workspace_at_commit(
+        &self,
+        commit_id: &CommitId,
+    ) -> Result<Option<(String, String)>, CommandError> {
+        let listing = self.execute_jj_command(
+            vec![
+                "--ignore-working-copy",
+                "workspace",
+                "list",
+                "-T",
+                r#"name ++ "\t" ++ self.target().commit_id() ++ "\t" ++ self.root() ++ "\n""#,
+            ],
+            false,
+            true,
+        )?;
+        for line in listing.lines() {
+            let mut parts = line.splitn(3, '\t');
+            let name = match parts.next() {
+                Some(s) => s,
+                None => continue,
+            };
+            let ws_commit = match parts.next() {
+                Some(s) => s,
+                None => continue,
+            };
+            let ws_root = match parts.next() {
+                Some(s) => s,
+                None => continue,
+            };
+            if ws_commit == commit_id.as_str() {
+                return Ok(Some((name.to_owned(), ws_root.to_owned())));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Forget workspace. Maps to `jj workspace forget <name>`
+    #[instrument(level = "trace", skip(self))]
+    pub fn forget_workspace(&self, name: &str) -> Result<(), CommandError> {
+        self.execute_void_jj_command(vec!["workspace", "forget", name])
+    }
+
     /// Git fetch. Maps to `jj git fetch`
     #[instrument(level = "trace", skip(self))]
     pub fn git_fetch(&self, all_remotes: bool) -> Result<String, CommandError> {
@@ -493,6 +538,88 @@ mod tests {
         let bookmarks = test_repo.commander.get_bookmarks_list(false)?;
         assert_eq!(bookmarks, []);
 
+        Ok(())
+    }
+
+    #[test]
+    fn get_workspace_at_commit_finds_default() -> Result<()> {
+        let test_repo = TestRepo::new()?;
+        let head = test_repo.commander.get_current_head()?;
+        let found = test_repo
+            .commander
+            .get_workspace_at_commit(&head.commit_id)?;
+        let (name, root) = found.expect("default workspace should be at @");
+        assert_eq!(name, "default");
+        let expected = std::fs::canonicalize(test_repo.directory.path())?;
+        let got = std::fs::canonicalize(&root)?;
+        assert_eq!(got, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn get_workspace_at_commit_returns_none_for_other_commit() -> Result<()> {
+        let test_repo = TestRepo::new()?;
+        let head = test_repo.commander.get_current_head()?;
+        // Move @ off `head` so no workspace points at it.
+        test_repo.commander.run_new(head.commit_id.as_str())?;
+        let found = test_repo
+            .commander
+            .get_workspace_at_commit(&head.commit_id)?;
+        assert!(found.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn forget_workspace() -> Result<()> {
+        let test_repo = TestRepo::new()?;
+        let extra = test_repo.directory.path().parent().unwrap().join("ws2");
+        let _ = std::fs::remove_dir_all(&extra);
+
+        test_repo.commander.execute_void_jj_command(vec![
+            "workspace",
+            "add",
+            extra.to_str().unwrap(),
+        ])?;
+
+        let names: Vec<String> = test_repo
+            .commander
+            .execute_jj_command(
+                vec![
+                    "--ignore-working-copy",
+                    "workspace",
+                    "list",
+                    "-T",
+                    r#"name ++ "\n""#,
+                ],
+                false,
+                true,
+            )?
+            .lines()
+            .map(|s| s.to_owned())
+            .collect();
+        assert!(names.contains(&"ws2".to_owned()));
+
+        test_repo.commander.forget_workspace("ws2")?;
+
+        let names_after: Vec<String> = test_repo
+            .commander
+            .execute_jj_command(
+                vec![
+                    "--ignore-working-copy",
+                    "workspace",
+                    "list",
+                    "-T",
+                    r#"name ++ "\n""#,
+                ],
+                false,
+                true,
+            )?
+            .lines()
+            .map(|s| s.to_owned())
+            .collect();
+        assert!(!names_after.contains(&"ws2".to_owned()));
+
+        let _ = std::fs::remove_dir_all(&extra);
         Ok(())
     }
 

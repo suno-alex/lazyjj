@@ -47,6 +47,7 @@ pub enum LogTabEvent {
     SetBookmark,
     OpenFiles,
     OpenPr,
+    ForgetWorkspace,
 
     CopyChangeId,
 
@@ -100,6 +101,7 @@ impl Default for LogTabKeybinds {
             LogTabEvent::SetBookmark => "b",
             LogTabEvent::OpenFiles => "enter",
             LogTabEvent::OpenPr => "g",
+            LogTabEvent::ForgetWorkspace => "ctrl+d",
             LogTabEvent::CopyChangeId => "y",
             event_push(false, false) => "p",
             event_push(false, true) => "ctrl+p",
@@ -152,6 +154,7 @@ impl LogTabKeybinds {
             LogTabEvent::SetBookmark => config.set_bookmark,
             LogTabEvent::OpenFiles => config.open_files,
             LogTabEvent::OpenPr => config.open_pr,
+            LogTabEvent::ForgetWorkspace => config.forget_workspace,
             LogTabEvent::CopyChangeId => config.copy_change_id,
             LogTabEvent::Rebase => config.rebase,
             event_push(false, false) => config.push,
@@ -190,6 +193,7 @@ impl LogTabKeybinds {
             LogTabEvent::Squash { ignore_immutable: true } => "squash @ into the selected change ignoring immutability",
             LogTabEvent::SetBookmark => "set bookmark",
             LogTabEvent::OpenPr => "open GitHub PR for bookmark in browser",
+            LogTabEvent::ForgetWorkspace => "forget the workspace of the selected change (deletes its dir)",
             LogTabEvent::CopyChangeId => "copy change ID to clipboard",
             LogTabEvent::Fetch { all_remotes: false } => "git fetch",
             LogTabEvent::Fetch { all_remotes: true } => "git fetch all remotes",

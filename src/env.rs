@@ -141,6 +141,15 @@ pub struct Env {
 }
 
 impl Env {
+    /// True if `other` refers to the same directory as `self.root`, comparing
+    /// canonicalized paths so symlinks and `/tmp` vs `/private/tmp` differences
+    /// don't cause false negatives. `None` if either path can't be canonicalized.
+    pub fn root_matches(&self, other: &str) -> Option<bool> {
+        let a = std::fs::canonicalize(&self.root).ok()?;
+        let b = std::fs::canonicalize(other).ok()?;
+        Some(a == b)
+    }
+
     pub fn new(path: PathBuf, default_revset: Option<String>, jj_bin: String) -> Result<Env> {
         // Get jj repository root
         let root_output = Command::new(&jj_bin)

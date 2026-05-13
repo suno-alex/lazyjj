@@ -44,6 +44,7 @@ edit-revset = "r"
 set-bookmark = "b"
 open-files = "enter"
 open-pr = "g"
+forget-workspace = "ctrl+d"
 copy-change-id = "y"
 
 push = "p"
